@@ -10,11 +10,6 @@ void main() async {
 
   // PatientAdapter ni ro'yxatdan o'tkazish
   Hive.registerAdapter(PatientAdapter());
-
-  // Bemorlar ro'yxatini o'chirish (Test qilish uchun)
-  // await Hive.deleteBoxFromDisk('patients');
-
-  // Patient ma'lumotlarini saqlash uchun box ochish
   await Hive.openBox<Patient>('patients');
 
   runApp(const MyApp());
