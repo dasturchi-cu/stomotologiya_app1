@@ -3,8 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart'; // Sana formatlash uchun import
 
-import 'models/patient.dart';
-import '../patient.dart'; // Modelga import
+import '../../models/patient.dart';
 
 class PatientEdit extends StatefulWidget {
   final int patientIndex; // Tahrir qilinayotgan bemorning indeksi
