@@ -120,19 +120,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _filterChip(label: 'Bugun', isSelected: false),
-                      _filterChip(label: 'Ushbu hafta', isSelected: false),
-                      _filterChip(label: 'A-Z', isSelected: true),
-                      _filterChip(label: 'Eng yangi', isSelected: false),
-                      _filterChip(
-                          label: 'To\'lov qilinmagan', isSelected: false),
-                    ],
-                  ),
-                ),
+                // SingleChildScrollView(
+                //   scrollDirection: Axis.horizontal,
+                //   child: Row(
+                //     children: [
+                //       _filterChip(label: 'Bugun', isSelected: false),
+                //       _filterChip(label: 'Ushbu hafta', isSelected: false),
+                //       _filterChip(label: 'A-Z', isSelected: true),
+                //       _filterChip(label: 'Eng yangi', isSelected: false),
+                //       _filterChip(
+                //           label: 'To\'lov qilinmagan', isSelected: false),
+                //     ],
+                //   ),
+                // ),
               ],
             ),
           ),
@@ -170,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: EdgeInsets.all(16),
                     itemBuilder: (context, index) {
                       final patient = filteredPatients[index];
-                      return _buildPatientCard(context, patient);
+                      return _buildPatientCard(context, patient, index);
                     },
                   );
                 }
@@ -243,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPatientCard(BuildContext context, Patient patient) {
+  Widget _buildPatientCard(BuildContext context, Patient patient, int index) {
     final bool hasUpcomingAppointment = false; // Replace with actual logic
 
     return Card(
@@ -354,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   IconButton(
                     icon: Icon(Icons.delete_outline, color: Colors.red[400]),
                     onPressed: () {
-                      _showDeleteConfirmation(context, patient);
+                      _showDeleteConfirmation(context, patient, index);
                     },
                   ),
                 ],
@@ -433,7 +433,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return initials;
   }
 
-  void _showDeleteConfirmation(BuildContext context, Patient patient) {
+  void _showDeleteConfirmation(
+      BuildContext context, Patient patient, int index) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -448,18 +449,12 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton(
             onPressed: () {
               // Delete patient logic
-              // box.deleteAt(index);
+              box.deleteAt(index);
               Navigator.pop(context);
 
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('${patient.fullName} o\'chirildi'),
-                  action: SnackBarAction(
-                    label: 'Bekor qilish',
-                    onPressed: () {
-                      // Implement undo logic
-                    },
-                  ),
                 ),
               );
             },
