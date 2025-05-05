@@ -27,13 +27,15 @@ class PatientAdapter extends TypeAdapter<Patient> {
       speaksUzbek: fields[7] as String,
       address: fields[8] as String,
       imagePath: fields[9] as String,
+      imagePaths: (fields[10] as List).cast<String>(),
+      visitDates: (fields[11] as List?)?.cast<DateTime>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Patient obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.fullName)
       ..writeByte(1)
@@ -53,7 +55,11 @@ class PatientAdapter extends TypeAdapter<Patient> {
       ..writeByte(8)
       ..write(obj.address)
       ..writeByte(9)
-      ..write(obj.imagePath);
+      ..write(obj.imagePath)
+      ..writeByte(10)
+      ..write(obj.imagePaths)
+      ..writeByte(11)
+      ..write(obj.visitDates);
   }
 
   @override

@@ -24,7 +24,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
   DateTime? firstVisitDate;
   String complaint = '';
   String address = '';
-  File? _image;
+  List<File> _images = []; // Changed to list of images
   bool _isSaving = false;
 
   // Controllers for text fields
@@ -45,26 +45,40 @@ class AddPatientScreenState extends State<AddPatientScreen> {
     super.dispose();
   }
 
-  // Rasmni tanlash
+  // Rasmlarni tanlash
   Future<void> _pickImage(ImageSource source) async {
     Navigator.of(context).pop(); // Close the modal bottom sheet
 
-    final XFile? image = await _picker.pickImage(
-      source: source,
-      imageQuality: 80, // Optimize image quality
-    );
+    if (source == ImageSource.camera) {
+      // For camera, add a single image
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+      );
 
-    if (image != null) {
-      setState(() {
-        _image = File(image.path);
-      });
+      if (image != null) {
+        setState(() {
+          _images.add(File(image.path));
+        });
+      }
+    } else {
+      // For gallery, allow multiple selection
+      final List<XFile>? images = await _picker.pickMultiImage(
+        imageQuality: 80,
+      );
+
+      if (images != null && images.isNotEmpty) {
+        setState(() {
+          _images.addAll(images.map((xFile) => File(xFile.path)));
+        });
+      }
     }
   }
 
   void _showImageSourceOptions() {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) => SafeArea(
@@ -73,22 +87,22 @@ class AddPatientScreenState extends State<AddPatientScreen> {
           children: [
             ListTile(
               leading: Icon(Icons.photo_camera, color: Colors.blue[800]),
-              title: Text('Kameradan olish'),
+              title: const Text('Kameradan olish'),
               onTap: () => _pickImage(ImageSource.camera),
             ),
             ListTile(
               leading: Icon(Icons.photo_library, color: Colors.blue[800]),
-              title: Text('Galereyadan tanlash'),
+              title: const Text('Galereyadan tanlash'),
               onTap: () => _pickImage(ImageSource.gallery),
             ),
-            if (_image != null)
+            if (_images.isNotEmpty)
               ListTile(
                 leading: Icon(Icons.delete, color: Colors.red[400]),
-                title: Text('Rasmni o\'chirish'),
+                title: const Text('Barcha rasmlarni o\'chirish'),
                 onTap: () {
                   Navigator.of(context).pop();
                   setState(() {
-                    _image = null;
+                    _images.clear();
                   });
                 },
               ),
@@ -98,12 +112,20 @@ class AddPatientScreenState extends State<AddPatientScreen> {
     );
   }
 
+  void _removeImage(int index) {
+    if (index >= 0 && index < _images.length) {
+      setState(() {
+        _images.removeAt(index);
+      });
+    }
+  }
+
   // Sana tanlash uchun metod
   Future<void> _selectDate(BuildContext context, bool isBirthDate) async {
     final DateTime initialDate = isBirthDate
         ? (birthDate ??
-            DateTime.now().subtract(Duration(
-                days: 365 * 30))) // Default to 30 years ago for birth date
+        DateTime.now().subtract(const Duration(
+            days: 365 * 30))) // Default to 30 years ago for birth date
         : (firstVisitDate ?? DateTime.now());
 
     final DateTime? picked = await showDatePicker(
@@ -111,7 +133,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       initialDate: initialDate,
       firstDate: DateTime(1900),
       lastDate: DateTime.now().add(
-          Duration(days: 365)), // Allow setting appointments 1 year in advance
+          const Duration(days: 365)), // Allow setting appointments 1 year in advance
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -162,19 +184,19 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       final newPatient = Patient(
         fullName: fullname,
         birthDate:
-            birthDate ?? DateTime.now().subtract(Duration(days: 365 * 30)),
+        birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
         phoneNumber: phoneNumber,
         firstVisitDate: firstVisitDate ?? DateTime.now(),
         complaint: complaint,
         address: address,
-        imagePath: '',
+        imagePaths: [], // Initialize with empty list
         speaksRussian: '', // Empty strings for language fields
         speaksEnglish: '',
         speaksUzbek: '',
       );
 
-      // Save image if selected
-      if (_image != null) {
+      // Save images if selected
+      if (_images.isNotEmpty) {
         final directory = await getApplicationDocumentsDirectory();
         final imageDirectory = Directory('${directory.path}/patient_images');
 
@@ -182,11 +204,18 @@ class AddPatientScreenState extends State<AddPatientScreen> {
           await imageDirectory.create(recursive: true);
         }
 
-        final imagePath =
-            '${imageDirectory.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        await _image!.copy(imagePath);
+        final List<String> savedImagePaths = [];
 
-        newPatient.imagePath = imagePath;
+        // Save each image
+        for (int i = 0; i < _images.length; i++) {
+          final imagePath =
+              '${imageDirectory.path}/${DateTime.now().millisecondsSinceEpoch}_${i}.jpg';
+          await _images[i].copy(imagePath);
+          savedImagePaths.add(imagePath);
+        }
+
+        // Set the image paths
+        newPatient.imagePaths = savedImagePaths;
       }
 
       // Save to database
@@ -227,7 +256,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         0,
-        duration: Duration(milliseconds: 500),
+        duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
       );
     }
@@ -255,11 +284,11 @@ class AddPatientScreenState extends State<AddPatientScreen> {
           TextButton.icon(
             onPressed: _isSaving ? null : _savePatient,
             icon: _isSaving
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
                 : Icon(Icons.check, color: Colors.green[700]),
             label: Text(
               'Saqlash',
@@ -274,19 +303,20 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       body: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.all(0),
-        physics: BouncingScrollPhysics(),
+        physics: const BouncingScrollPhysics(),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Patient photo section
+              // Patient photos section
               Container(
                 width: double.infinity,
                 color: Colors.white,
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
+                    // Image selection button
                     GestureDetector(
                       onTap: _showImageSourceOptions,
                       child: Container(
@@ -299,43 +329,105 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                             BoxShadow(
                               color: Colors.black.withOpacity(0.1),
                               blurRadius: 8,
-                              offset: Offset(0, 2),
+                              offset: const Offset(0, 2),
                             ),
                           ],
-                          image: _image != null
+                          image: _images.isNotEmpty
                               ? DecorationImage(
-                                  image: FileImage(_image!),
-                                  fit: BoxFit.cover,
-                                )
+                            image: FileImage(_images[0]),
+                            fit: BoxFit.cover,
+                          )
                               : null,
                         ),
-                        child: _image == null
+                        child: _images.isEmpty
                             ? Icon(
-                                Icons.add_a_photo,
-                                size: 40,
-                                color: Colors.grey[500],
-                              )
+                          Icons.add_a_photo,
+                          size: 40,
+                          color: Colors.grey[500],
+                        )
                             : null,
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
-                      'Bemor rasmi',
+                      'Bemor rasmlari',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
                     ),
+
+                    // Show selected images in a horizontal list
+                    if (_images.isNotEmpty)
+                      Container(
+                        height: 100,
+                        margin: const EdgeInsets.only(top: 16),
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _images.length,
+                          itemBuilder: (context, index) {
+                            return Container(
+                              width: 80,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                image: DecorationImage(
+                                  image: FileImage(_images[index]),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.topRight,
+                                children: [
+                                  InkWell(
+                                    onTap: () => _removeImage(index),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                    // Add more images button
+                    if (_images.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: _showImageSourceOptions,
+                          icon: const Icon(Icons.add_photo_alternate),
+                          label: const Text('Rasm qo\'shish'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[800],
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
 
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
 
               // Personal information section
               _buildSectionHeader('Shaxsiy ma\'lumotlar'),
               Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 color: Colors.white,
                 child: Column(
                   children: [
@@ -349,14 +441,14 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                           : null,
                       onSaved: (value) => fullname = value ?? '',
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     _buildDateField(
                       label: 'Tug\'ilgan sana',
                       value: birthDate != null ? _formatDate(birthDate) : null,
                       icon: Icons.cake_outlined,
                       onTap: () => _selectDate(context, true),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     _buildTextField(
                       controller: _phoneController,
                       label: 'Telefon raqami',
@@ -375,7 +467,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                       },
                       onSaved: (value) => phoneNumber = value ?? '',
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     _buildTextField(
                       controller: _addressController,
                       label: 'Manzil',
@@ -387,12 +479,12 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                 ),
               ),
 
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
 
               // Medical information section
               _buildSectionHeader('Tibbiy ma\'lumotlar'),
               Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 color: Colors.white,
                 child: Column(
                   children: [
@@ -404,7 +496,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                       icon: Icons.calendar_today_outlined,
                       onTap: () => _selectDate(context, false),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     _buildTextField(
                       controller: _complaintController,
                       label: 'Bemor shikoyati',
@@ -417,36 +509,34 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                 ),
               ),
 
-              SizedBox(height: 12),
-
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
 
               // Save button
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _savePatient,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[800],
-                    minimumSize: Size(double.infinity, 56),
+                    minimumSize: const Size(double.infinity, 56),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 2,
                   ),
                   child: _isSaving
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          'SAQLASH',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                    'SAQLASH',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -456,7 +546,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: EdgeInsets.only(left: 16, bottom: 8, top: 8),
+      padding: const EdgeInsets.only(left: 16, bottom: 8, top: 8),
       child: Text(
         title,
         style: TextStyle(
@@ -502,7 +592,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         ),
         filled: true,
         fillColor: Colors.grey[50],
-        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       ),
       maxLines: maxLines,
       keyboardType: keyboardType,
@@ -521,7 +611,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey[300]!),
           borderRadius: BorderRadius.circular(12),
@@ -530,7 +620,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         child: Row(
           children: [
             Icon(icon, color: Colors.blue[800]),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,7 +632,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                       color: Colors.grey[600],
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     value == null || value.isEmpty ? 'Tanlang' : value,
                     style: TextStyle(
@@ -561,6 +651,4 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       ),
     );
   }
-
-// Language switch widget removed
 }

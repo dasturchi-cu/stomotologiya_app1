@@ -1,226 +1,226 @@
+// Screen for editing patient images
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Tarjima qilish uchun
+import 'package:hive/hive.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../models/patient.dart';
 
-class PatientEdit extends StatefulWidget {
+class PatientImagesEditScreen extends StatefulWidget {
+  final Patient patient;
+
+  const PatientImagesEditScreen({Key? key, required this.patient})
+      : super(key: key);
+
   @override
-  _PatientEditState createState() => _PatientEditState();
+  State<PatientImagesEditScreen> createState() =>
+      _PatientImagesEditScreenState();
 }
 
-class _PatientEditState extends State<PatientEdit> {
-  late TextEditingController fullNameController;
-  late TextEditingController phoneNumberController;
-  late TextEditingController complaintController;
-  late TextEditingController addressController;
-  late TextEditingController birthDateController;
-  late TextEditingController firstVisitDateController;
-  late String currentLanguage = 'uz'; // Boshlang'ich til: O'zbek
-  String imagePath = ''; // Rasm uchun o'zgaruvchi
+class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
+  late List<String> _imagePaths;
+  bool _hasChanges = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    fullNameController = TextEditingController();
-    phoneNumberController = TextEditingController();
-    complaintController = TextEditingController();
-    addressController = TextEditingController();
-    birthDateController = TextEditingController();
-    firstVisitDateController = TextEditingController();
+    // Create a copy of the list to work with
+    _imagePaths = List<String>.from(widget.patient.imagePaths);
   }
 
-  String formatDate(DateTime date) {
-    return DateFormat('yyyy-MM-dd').format(date);
-  }
+  // Rasmlarni tanlash
+  Future<void> _pickImage(ImageSource source) async {
+    Navigator.of(context).pop(); // Close the modal bottom sheet
 
-  Future<void> _selectDate(BuildContext context, bool isBirthDate) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isBirthDate) {
-          birthDateController.text = formatDate(picked);
-        } else {
-          firstVisitDateController.text = formatDate(picked);
-        }
-      });
+    if (source == ImageSource.camera) {
+      // For camera, add a single image
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        setState(() {
+          _imagePaths.add(File(image.path).path);
+          _hasChanges = true;
+        });
+      }
+    } else {
+      // For gallery, allow multiple selection
+      final List<XFile>? images = await _picker.pickMultiImage(
+        imageQuality: 80,
+      );
+
+      if (images != null && images.isNotEmpty) {
+        setState(() {
+          _imagePaths.addAll(images.map((xFile) => File(xFile.path).path));
+          _hasChanges = true;
+        });
+      }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Bemorni Tahrir qilish')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Tilni tanlash dropdowni
-            DropdownButton<String>(
-              value: currentLanguage,
-              items: [
-                DropdownMenuItem(value: 'uz', child: Text('O\'zbek tili')),
-                DropdownMenuItem(value: 'ru', child: Text('Русский')),
-                DropdownMenuItem(value: 'en', child: Text('English')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  currentLanguage = value!;
-                  // Tanlangan tilni saqlash va UI-ni yangilash
-                });
-              },
+            ListTile(
+              leading: Icon(Icons.photo_camera, color: Colors.blue[800]),
+              title: const Text('Kameradan olish'),
+              onTap: () => _pickImage(ImageSource.camera),
             ),
-            // Bemorga ism kiritish
-            TextField(
-              controller: fullNameController,
-              decoration: InputDecoration(labelText: _getLabelText('fullName')),
+            ListTile(
+              leading: Icon(Icons.photo_library, color: Colors.blue[800]),
+              title: const Text('Galereyadan tanlash'),
+              onTap: () => _pickImage(ImageSource.gallery),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: birthDateController,
-                    decoration:
-                        InputDecoration(labelText: _getLabelText('birthDate')),
-                    readOnly: true,
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _selectDate(context, true),
-                  child: Text(_getLabelText('chooseDate')),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: firstVisitDateController,
-                    decoration: InputDecoration(
-                        labelText: _getLabelText('firstVisitDate')),
-                    readOnly: true,
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _selectDate(context, false),
-                  child: Text(_getLabelText('chooseDate')),
-                ),
-              ],
-            ),
-            TextField(
-              controller: phoneNumberController,
-              decoration:
-                  InputDecoration(labelText: _getLabelText('phoneNumber')),
-            ),
-            TextField(
-              controller: complaintController,
-              decoration:
-                  InputDecoration(labelText: _getLabelText('complaint')),
-            ),
-            TextField(
-              controller: addressController,
-              decoration: InputDecoration(labelText: _getLabelText('address')),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Bemorni saqlash
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(_getLabelText('save'))));
-              },
-              child: Text(_getLabelText('save')),
-            ),
+            if (_imagePaths.isNotEmpty)
+              ListTile(
+                leading: Icon(Icons.delete, color: Colors.red[400]),
+                title: const Text('Barcha rasmlarni o\'chirish'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _imagePaths.clear();
+                  });
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  // Har bir til uchun tarjimani olish
-  String _getLabelText(String key) {
-    switch (currentLanguage) {
-      case 'ru':
-        return _getRusText(key);
-      case 'en':
-        return _getEngText(key);
-      default:
-        return _getUzText(key);
+  void _removeImage(int index) {
+    if (index >= 0 && index < _imagePaths.length) {
+      setState(() {
+        _imagePaths.removeAt(index);
+        _hasChanges = true;
+      });
     }
   }
 
-  // O'zbekcha tarjimalar
-  String _getUzText(String key) {
-    switch (key) {
-      case 'fullName':
-        return 'To\'liq ismi';
-      case 'birthDate':
-        return 'Tug‘ilgan sana';
-      case 'firstVisitDate':
-        return 'Birinchi tashrif sanasi';
-      case 'phoneNumber':
-        return 'Telefon raqami';
-      case 'complaint':
-        return 'Bemor shikoyati';
-      case 'address':
-        return 'Kerak adres';
-      case 'chooseDate':
-        return 'Sana tanlash';
-      case 'save':
-        return 'Saqlash';
-      default:
-        return '';
+  void _saveChanges() async {
+    try {
+      // Create updated patient with new image paths
+      final updatedPatient = widget.patient.copyWith(imagePaths: _imagePaths);
+
+      // Get patients box from Hive
+      final patientsBox = Hive.box<Patient>('patients');
+
+      // Find the patient in the box and update it
+      final patientKey = patientsBox.keyAt(patientsBox.values
+          .toList()
+          .indexWhere((patient) => patient == widget.patient));
+
+      if (patientKey != null) {
+        print(patientKey);
+        // Update the patient in the database
+        await patientsBox.put(patientKey, updatedPatient!);
+
+        // Update the patient object reference to reflect changes
+        widget.patient.imagePaths = _imagePaths;
+
+        // Show success feedback and return to previous screen
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rasmlar muvaffaqiyatli saqlandi')),
+          );
+          Navigator.of(context).pop(true);
+        }
+      } else {
+        throw Exception('Patient not found in database');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saqlashda xatolik yuz berdi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  // Ruscha tarjimalar
-  String _getRusText(String key) {
-    switch (key) {
-      case 'fullName':
-        return 'Полное имя';
-      case 'birthDate':
-        return 'Дата рождения';
-      case 'firstVisitDate':
-        return 'Дата первого визита';
-      case 'phoneNumber':
-        return 'Номер телефона';
-      case 'complaint':
-        return 'Жалоба';
-      case 'address':
-        return 'Адрес';
-      case 'chooseDate':
-        return 'Выбрать дату';
-      case 'save':
-        return 'Сохранить';
-      default:
-        return '';
-    }
-  }
-
-  // Inglizcha tarjimalar
-  String _getEngText(String key) {
-    switch (key) {
-      case 'fullName':
-        return 'Full Name';
-      case 'birthDate':
-        return 'Date of Birth';
-      case 'firstVisitDate':
-        return 'First Visit Date';
-      case 'phoneNumber':
-        return 'Phone Number';
-      case 'complaint':
-        return 'Complaint';
-      case 'address':
-        return 'Address';
-      case 'chooseDate':
-        return 'Choose Date';
-      case 'save':
-        return 'Save';
-      default:
-        return '';
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rasmlarni tahrirlash'),
+        actions: [
+          if (_hasChanges)
+            IconButton(
+              icon: const Icon(Icons.save),
+              onPressed: _saveChanges,
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _imagePaths.isEmpty
+                ? const Center(child: Text('Rasmlar yo\'q'))
+                : GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: _imagePaths.length,
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Card(
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.file(
+                                File(_imagePaths[index]),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Colors.red.withOpacity(0.7),
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                iconSize: 20,
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.white),
+                                onPressed: () => _removeImage(index),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showImageSourceOptions,
+        child: const Icon(Icons.add_a_photo),
+      ),
+    );
   }
 }

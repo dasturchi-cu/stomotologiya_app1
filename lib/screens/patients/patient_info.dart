@@ -1,64 +1,284 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:stomotologiya_app/screens/patients/patient_edit_screen.dart';
 
 import '../../models/patient.dart';
 
-class PatientDetailsScreen extends StatelessWidget {
+class PatientDetailsScreen extends StatefulWidget {
   final Patient patient;
 
   const PatientDetailsScreen({super.key, required this.patient});
 
+  @override
+  State<PatientDetailsScreen> createState() => _PatientDetailsScreenState();
+}
+
+class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final formatter = DateFormat('yyyy-MM-dd');
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          patient.fullName,
+          widget.patient.fullName,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () => _editPatientImages(context),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _showAddVisitDialog(context);
+        },
+        child: Icon(Icons.add),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: 6,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: patient.imagePath.isNotEmpty
-                      ? Image.file(
-                          File(patient.imagePath),
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        )
-                      : Icon(
-                          Icons.person,
-                          size: 44,
+        child: Column(
+          children: [
+            Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 6,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Patient Images Gallery
+                    if (widget.patient.imagePaths.isNotEmpty) ...[
+                      const Text(
+                        "Tibbiy Rasmlar",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 200,
+                        child: _buildImageGallery(context),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Patient Information
+                    _buildInfoTile(
+                        Icons.phone, 'Telefon', widget.patient.phoneNumber),
+                    _buildInfoTile(Icons.cake, 'Tug\'ilgan sana',
+                        formatter.format(widget.patient.birthDate)),
+                    _buildInfoTile(Icons.calendar_today, 'Birinchi tashrif',
+                        formatter.format(widget.patient.firstVisitDate)),
+                    _buildInfoTile(Icons.report_problem, 'Shikoyat',
+                        widget.patient.complaint),
+                    _buildInfoTile(
+                        Icons.home, 'Manzil', widget.patient.address),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                _buildInfoTile(Icons.phone, 'Telefon', patient.phoneNumber),
-                _buildInfoTile(Icons.cake, 'Tug‘ilgan sana',
-                    formatter.format(patient.birthDate)),
-                _buildInfoTile(Icons.calendar_today, 'Birinchi tashrif',
-                    formatter.format(patient.firstVisitDate)),
-                _buildInfoTile(
-                    Icons.report_problem, 'Shikoyat', patient.complaint),
-                _buildInfoTile(Icons.home, 'Manzil', patient.address),
-              ],
+              ),
             ),
-          ),
+            Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 6,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  spacing: 10,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Kelgan sanalari",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    _buildVisitDatesList()
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildVisitDatesList() {
+    if (widget.patient.visitDates.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text("Hali tashriflar yo'q"),
+        ),
+      );
+    }
+
+    // Sort dates newest first
+    final sortedDates = List<DateTime>.from(widget.patient.visitDates)
+      ..sort((a, b) => b.compareTo(a));
+
+    final formatter = DateFormat('yyyy-MM-dd');
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: sortedDates.length,
+      itemBuilder: (context, index) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: const Icon(Icons.calendar_month),
+            title: Text(
+              formatter.format(sortedDates[index]),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _removeVisitDate(context, sortedDates[index]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddVisitDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddVisitDialog(
+        onAddVisit: (date) {
+          _addVisitDate(context, date);
+        },
+      ),
+    );
+  }
+
+  void _addVisitDate(BuildContext context, DateTime date) async {
+    widget.patient.addVisitDate(date);
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Yangi tashrif qo\'shildi')),
+    );
+
+    // Optional: Refresh the UI
+    if (context.mounted) {
+      setState(() {}); // If using StatefulWidget
+    }
+  }
+
+  void _removeVisitDate(BuildContext context, DateTime date) {
+    // Confirm deletion
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tashrifni o\'chirish'),
+        content: const Text('Haqiqatan ham bu tashrifni o\'chirmoqchimisiz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('YO\'Q'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              // Remove the visit date
+              widget.patient.visitDates.removeWhere((visitDate) =>
+                  visitDate.year == date.year &&
+                  visitDate.month == date.month &&
+                  visitDate.day == date.day);
+
+              // Save changes to Hive
+              widget.patient.save();
+
+              // Close dialog
+              Navigator.of(context).pop();
+
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tashrif o\'chirildi')),
+              );
+
+              // Refresh the screen
+              if (context.mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        PatientDetailsScreen(patient: widget.patient),
+                  ),
+                );
+              }
+            },
+            child: const Text('HA', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageGallery(BuildContext context) {
+    return widget.patient.imagePaths.isEmpty
+        ? const Center(child: Text("Rasmlar yo'q"))
+        : PageView.builder(
+            itemCount: widget.patient.imagePaths.length,
+            itemBuilder: (context, index) {
+              return GestureDetector(
+                onTap: () => _showFullScreenImage(context, index),
+                child: Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 8.0),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(
+                      File(widget.patient.imagePaths[index]),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+  }
+
+  void _showFullScreenImage(BuildContext context, int initialIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FullScreenImageViewer(
+          imagePaths: widget.patient.imagePaths,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
+  void _editPatientImages(BuildContext context) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PatientImagesEditScreen(
+          patient: widget.patient,
+        ),
+      ),
+    );
+
+    // Refresh the screen if images were updated
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rasmlar yangilandi')),
+      );
+    }
   }
 
   Widget _buildInfoTile(IconData icon, String label, String value) {
@@ -91,5 +311,147 @@ class PatientDetailsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// Full screen image viewer for when user taps on an image
+class FullScreenImageViewer extends StatefulWidget {
+  final List<String> imagePaths;
+  final int initialIndex;
+
+  const FullScreenImageViewer({
+    Key? key,
+    required this.imagePaths,
+    required this.initialIndex,
+  }) : super(key: key);
+
+  @override
+  State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${_currentIndex + 1}/${widget.imagePaths.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.imagePaths.length,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemBuilder: (context, index) {
+          return InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Center(
+              child: Image.file(
+                File(widget.imagePaths[index]),
+                fit: BoxFit.contain,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class AddVisitDialog extends StatefulWidget {
+  final Function(DateTime) onAddVisit;
+
+  const AddVisitDialog({Key? key, required this.onAddVisit}) : super(key: key);
+
+  @override
+  _AddVisitDialogState createState() => _AddVisitDialogState();
+}
+
+class _AddVisitDialogState extends State<AddVisitDialog> {
+  DateTime _selectedDate = DateTime.now();
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = DateFormat('yyyy-MM-dd');
+
+    return AlertDialog(
+      title: const Text('Yangi Tashrif Qo\'shish'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: _selectDate,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(formatter.format(_selectedDate)),
+                  const Icon(Icons.calendar_today),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('BEKOR QILISH'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            widget.onAddVisit(_selectedDate);
+            Navigator.of(context).pop();
+          },
+          child: const Text('QO\'SHISH'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now()
+          .add(const Duration(days: 365)), // Allow future appointments
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
   }
 }

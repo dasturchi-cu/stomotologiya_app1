@@ -300,8 +300,10 @@ class _ExportScreenState extends State<ExportScreen> {
                                   if (result.type != ResultType.done) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                          content: Text(
-                                              'Faylni ochishda xatolik: ${result.message}')),
+                                        content: Text(
+                                          'Faylni ochishda xatolik: ${result.message}',
+                                        ),
+                                      ),
                                     );
                                   }
                                 }

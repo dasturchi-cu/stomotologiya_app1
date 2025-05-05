@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
 
-part 'patient.g.dart'; // To'g'ri yozilishi
+part 'patient.g.dart';
 
 @HiveType(typeId: 0)
 class Patient extends HiveObject {
@@ -32,7 +32,13 @@ class Patient extends HiveObject {
   final String address;
 
   @HiveField(9)
-  String imagePath;
+  String imagePath; // Kept for backward compatibility
+
+  @HiveField(10)
+  List<String> imagePaths; // Field for multiple images
+
+  @HiveField(11)
+  List<DateTime> visitDates; // New field for tracking visit dates
 
   Patient({
     required this.fullName,
@@ -45,5 +51,62 @@ class Patient extends HiveObject {
     required this.speaksUzbek,
     required this.address,
     this.imagePath = '',
-  });
+    this.imagePaths = const [],
+    List<DateTime>? visitDates,
+  }) : this.visitDates = visitDates ?? [firstVisitDate];
+
+  // Helper method to get all image paths (including legacy single path)
+  List<String> getAllImagePaths() {
+    List<String> allPaths = List.from(imagePaths);
+    if (imagePath.isNotEmpty && !imagePaths.contains(imagePath)) {
+      allPaths.add(imagePath);
+    }
+    return allPaths;
+  }
+
+  // Add a new visit date
+  void addVisitDate(DateTime visitDate) {
+    visitDates.add(visitDate);
+    print("saved");
+
+    save(); // Auto-save when adding a visit date
+  }
+
+  // Get the most recent visit date
+  DateTime get lastVisitDate {
+    if (visitDates.isEmpty) {
+      return firstVisitDate;
+    }
+    return visitDates.reduce((max, date) => date.isAfter(max) ? date : max);
+  }
+
+  Patient copyWith({
+    String? fullName,
+    DateTime? birthDate,
+    String? phoneNumber,
+    DateTime? firstVisitDate,
+    String? complaint,
+    String? speaksRussian,
+    String? speaksEnglish,
+    String? speaksUzbek,
+    String? address,
+    String? imagePath,
+    List<String>? imagePaths,
+    List<DateTime>? visitDates,
+  }) {
+    return Patient(
+      fullName: fullName ?? this.fullName,
+      birthDate: birthDate ?? this.birthDate,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      firstVisitDate: firstVisitDate ?? this.firstVisitDate,
+      complaint: complaint ?? this.complaint,
+      speaksRussian: speaksRussian ?? this.speaksRussian,
+      speaksEnglish: speaksEnglish ?? this.speaksEnglish,
+      speaksUzbek: speaksUzbek ?? this.speaksUzbek,
+      address: address ?? this.address,
+      imagePath: imagePath ?? this.imagePath,
+      imagePaths: imagePaths ?? this.imagePaths,
+      visitDates: visitDates ?? this.visitDates,
+    );
+  }
 }
