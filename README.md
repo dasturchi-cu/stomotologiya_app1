@@ -1,16 +1,33 @@
-# stomotologiya_app
+# 🦷 Stomatologiya Bemorlar Ro'yxati Ilovasi
 
-A new Flutter project.
+Bu Flutter ilova stomatologlar uchun bemorlar ro'yxatini yuritish, ularning tashrif sanalarini saqlash va umumiy boshqaruvni soddalashtirish maqsadida ishlab chiqilgan.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 📱 Ilova haqida
 
-A few resources to get you started if this is your first Flutter project:
+Ushbu ilova quyidagi imkoniyatlarni taqdim etadi:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- ✅ Bemorlar haqida ma'lumotlarni kiritish (ism, tug‘ilgan sana, telefon raqami, shikoyat, manzil va boshqalar)
+- 📆 Bemorning birinchi tashrifi va keyingi barcha tashrif sanalarini saqlash
+- 🖼️ Har bir bemor uchun rasm(lar)ni biriktirish
+- 🔄 Avtomatik ravishda yangi tashrif sanasini qo‘shish va saqlash
+- 📂 Ma’lumotlar Hive local database orqali saqlanadi (offline ishlaydi)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+---
+
+## 🛠 Texnologiyalar
+
+- **Flutter** – ilova interfeysini yaratish uchun
+- **Hive** – yengil va tezkor lokal ma’lumotlar bazasi
+- **Path Provider** – fayl tizimi bilan ishlash uchun
+- **Flutter widgets** – UI qurish uchun `ListView`, `TextField`, `DatePicker` va boshqalar
+
+---
+
+## ⚙️ O‘rnatish
+
+1. Repository-ni yuklab oling:
+   ```bash
+   git clone https://github.com/your-username/stomatologiya_app.git
+   cd stomatologiya_app
