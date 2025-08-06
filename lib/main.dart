@@ -1,14 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/adapters.dart';
-import 'package:stomotologiya_app/screens/home.dart';
-import 'screens/patients/add_patient_screen.dart';
+import 'firebase_options.dart';
+import 'screens/app_wrapper.dart';
 import 'models/patient.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase ni ishga tushirish
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Hive ni ishga tushirish
   await Hive.initFlutter();
 
   // PatientAdapter ni ro'yxatdan o'tkazish
@@ -25,7 +32,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: HomeScreen(),
+      home: const AppWrapper(),
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.blue),
     );
