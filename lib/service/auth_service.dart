@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_user.dart';
 import '../models/user_status.dart';
 import 'error_handler.dart';
@@ -12,7 +11,6 @@ class AuthService {
   AuthService._internal();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ErrorHandler _errorHandler = ErrorHandler();
 
   // Stream controllerlar
@@ -31,12 +29,25 @@ class AuthService {
 
   /// Service ni ishga tushirish
   Future<void> initialize() async {
-    // Firebase Auth state o'zgarishlarini kuzatish
-    _auth.authStateChanges().listen(_onAuthStateChanged);
+    try {
+      // Firebase Auth state o'zgarishlarini kuzatish
+      _auth.authStateChanges().listen(_onAuthStateChanged);
 
-    // Agar foydalanuvchi allaqachon tizimga kirgan bo'lsa
-    if (_auth.currentUser != null) {
-      await _onAuthStateChanged(_auth.currentUser);
+      // Agar foydalanuvchi allaqachon tizimga kirgan bo'lsa
+      if (_auth.currentUser != null) {
+        await _onAuthStateChanged(_auth.currentUser);
+      } else {
+        // Foydalanuvchi yo'q bo'lsa darhol unregistered status berish
+        _currentUser = null;
+        _userController.add(null);
+        _statusController.add(UserStatus.unregistered);
+      }
+    } catch (e) {
+      // Firebase bilan ulanish muammosi bo'lsa
+      print('Firebase Auth initialize xatoligi: $e');
+      _currentUser = null;
+      _userController.add(null);
+      _statusController.add(UserStatus.unregistered);
     }
   }
 
@@ -59,8 +70,7 @@ class AuthService {
       _userController.add(_currentUser);
       _statusController.add(userStatus);
 
-      // Foydalanuvchi ma'lumotlarini Firestore da yangilash
-      await _updateUserInFirestore(_currentUser!);
+      // Foydalanuvchi ma'lumotlari tayyor
     } catch (e) {
       print('Auth state o\'zgarishida xatolik: $e');
       _statusController.add(UserStatus.error);
@@ -70,38 +80,49 @@ class AuthService {
   /// Foydalanuvchi statusini tekshirish
   Future<UserStatus> _checkUserStatus(User firebaseUser) async {
     try {
-      // Firebase Auth da foydalanuvchi disabled emasligini tekshirish
-      await firebaseUser.reload();
-      final refreshedUser = _auth.currentUser;
-
-      if (refreshedUser == null) {
-        return UserStatus.disabled;
-      }
-
-      // Firestore dan foydalanuvchi ma'lumotlarini olish
-      final userDoc =
-          await _firestore.collection('users').doc(firebaseUser.uid).get();
-
-      if (!userDoc.exists) {
-        // Yangi foydalanuvchi - faol deb belgilaymiz
-        return UserStatus.active;
-      }
-
-      final userData = userDoc.data()!;
-      final statusString = userData['status'] as String?;
-
-      switch (statusString) {
-        case 'active':
-          return UserStatus.active;
-        case 'disabled':
-          return UserStatus.disabled;
-        default:
-          return UserStatus.active;
-      }
+      // 5 soniya timeout bilan Firebase Auth statusini tekshirish
+      final result = await _checkAuthWithTimeout(firebaseUser);
+      return result;
     } catch (e) {
       print('Foydalanuvchi statusini tekshirishda xatolik: $e');
-      return UserStatus.error;
+      // Firebase Auth xatoligi bo'lsa, disabled bo'lishi mumkin
+      if (e.toString().contains('user-disabled') ||
+          e.toString().contains('account-disabled')) {
+        return UserStatus.disabled;
+      }
+      // Boshqa xatoliklarda active deb hisoblaymiz
+      return UserStatus.active;
     }
+  }
+
+  /// Timeout bilan auth tekshirish
+  Future<UserStatus> _checkAuthWithTimeout(User firebaseUser) async {
+    try {
+      return await Future.any([
+        _performAuthCheck(firebaseUser),
+        Future.delayed(Duration(seconds: 5)).then((_) {
+          print('Firebase ulanish timeout - offline rejimda active');
+          return UserStatus.active;
+        }),
+      ]);
+    } catch (e) {
+      return UserStatus.active;
+    }
+  }
+
+  /// Auth tekshirish
+  Future<UserStatus> _performAuthCheck(User firebaseUser) async {
+    // Firebase Auth da foydalanuvchi disabled emasligini tekshirish
+    await firebaseUser.reload();
+    final refreshedUser = _auth.currentUser;
+
+    if (refreshedUser == null) {
+      // Foydalanuvchi disabled yoki o'chirilgan
+      return UserStatus.disabled;
+    }
+
+    // Agar Firebase Auth da faol bo'lsa, active deb hisoblaymiz
+    return UserStatus.active;
   }
 
   /// Email va parol bilan kirish
@@ -156,19 +177,6 @@ class AuthService {
     _currentUser = null;
     _userController.add(null);
     _statusController.add(UserStatus.unregistered);
-  }
-
-  /// Foydalanuvchi ma'lumotlarini Firestore da yangilash
-  Future<void> _updateUserInFirestore(AppUser user) async {
-    try {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .set(user.toMap(), SetOptions(merge: true));
-    } catch (e) {
-      print(
-          'Firestore da foydalanuvchi ma\'lumotlarini yangilashda xatolik: $e');
-    }
   }
 
   /// Service ni tozalash

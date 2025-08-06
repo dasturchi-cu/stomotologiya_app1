@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import '../service/auth_service.dart';
-import '../service/payment_enforcement_service.dart';
-import '../service/session_manager.dart';
-import '../service/error_handler.dart';
 import '../models/app_user.dart';
 import '../models/user_status.dart';
 import 'auth/login_screen.dart';
-import 'auth/payment_required_screen.dart';
 import 'home.dart';
 
 /// Asosiy ilova wrapper - authentication va payment enforcement ni boshqaradi
@@ -19,14 +15,9 @@ class AppWrapper extends StatefulWidget {
 
 class _AppWrapperState extends State<AppWrapper> {
   final AuthService _authService = AuthService();
-  final PaymentEnforcementService _paymentService = PaymentEnforcementService();
-  final SessionManager _sessionManager = SessionManager();
-  final ErrorHandler _errorHandler = ErrorHandler();
 
   AppUser? _currentUser;
   UserStatus _currentStatus = UserStatus.checking;
-  bool _hasAccess = false;
-  String? _blockMessage;
   bool _isInitialized = false;
 
   @override
@@ -40,27 +31,15 @@ class _AppWrapperState extends State<AppWrapper> {
       // Auth service ni ishga tushirish
       await _authService.initialize();
 
-      // Payment enforcement service ni ishga tushirish
-      await _paymentService.initialize();
-
-      // Session manager ni ishga tushirish
-      await _sessionManager.initialize();
-
       // Streamlarni kuzatish
       _authService.userStream.listen(_onUserChanged);
       _authService.statusStream.listen(_onStatusChanged);
-      _paymentService.accessStream.listen(_onAccessChanged);
-      _paymentService.messageStream.listen(_onMessageChanged);
-
-      // Error handler xabarlarini kuzatish
-      _errorHandler.messageStream.listen(_onErrorMessage);
 
       setState(() {
         _isInitialized = true;
       });
     } catch (e) {
-      final errorMessage = _errorHandler.handleGeneralError(e);
-      _errorHandler.showError(errorMessage);
+      print('Service larni ishga tushirishda xatolik: $e');
       setState(() {
         _currentStatus = UserStatus.error;
         _isInitialized = true;
@@ -81,42 +60,6 @@ class _AppWrapperState extends State<AppWrapper> {
       setState(() {
         _currentStatus = status;
       });
-    }
-  }
-
-  void _onAccessChanged(bool hasAccess) {
-    if (mounted) {
-      setState(() {
-        _hasAccess = hasAccess;
-      });
-    }
-  }
-
-  void _onMessageChanged(String? message) {
-    if (mounted) {
-      setState(() {
-        _blockMessage = message;
-      });
-    }
-  }
-
-  void _onErrorMessage(UserMessage message) {
-    if (mounted) {
-      // Error xabarlarini SnackBar orqali ko'rsatish
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(message.type.icon, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message.message)),
-            ],
-          ),
-          backgroundColor: message.type.color,
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
   }
 
@@ -148,19 +91,11 @@ class _AppWrapperState extends State<AppWrapper> {
         return const LoginScreen();
 
       case UserStatus.disabled:
-        return PaymentRequiredScreen(
-          message: _blockMessage ??
-              'Sizning hisobingiz o\'chirilgan. Davom etish uchun to\'lov qiling.',
-        );
+        // Disabled bo'lsa login ekraniga qaytarish
+        return const LoginScreen();
 
       case UserStatus.active:
-        if (_hasAccess) {
-          return SessionActivityTracker(
-            child: HomeScreen(),
-          );
-        } else {
-          return _buildLoadingScreen('Kirish huquqi tekshirilmoqda...');
-        }
+        return HomeScreen();
 
       case UserStatus.checking:
         return _buildLoadingScreen('Hisobingiz holati tekshirilmoqda...');
@@ -237,8 +172,7 @@ class _AppWrapperState extends State<AppWrapper> {
               ),
               const SizedBox(height: 16),
               Text(
-                _blockMessage ??
-                    'Hisobingiz holatini tekshirishda xatolik yuz berdi.',
+                'Hisobingiz holatini tekshirishda xatolik yuz berdi.',
                 style: TextStyle(
                   color: Colors.grey[700],
                   fontSize: 16,
