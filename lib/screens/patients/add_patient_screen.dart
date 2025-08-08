@@ -24,7 +24,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
   DateTime? firstVisitDate;
   String complaint = '';
   String address = '';
-  List<File> _images = []; // Changed to list of images
+  final List<File> _images = []; // Changed to list of images
   bool _isSaving = false;
 
   // Controllers for text fields
@@ -124,16 +124,16 @@ class AddPatientScreenState extends State<AddPatientScreen> {
   Future<void> _selectDate(BuildContext context, bool isBirthDate) async {
     final DateTime initialDate = isBirthDate
         ? (birthDate ??
-        DateTime.now().subtract(const Duration(
-            days: 365 * 30))) // Default to 30 years ago for birth date
+            DateTime.now().subtract(const Duration(
+                days: 365 * 30))) // Default to 30 years ago for birth date
         : (firstVisitDate ?? DateTime.now());
 
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: DateTime(1900),
-      lastDate: DateTime.now().add(
-          const Duration(days: 365)), // Allow setting appointments 1 year in advance
+      lastDate: DateTime.now().add(const Duration(
+          days: 365)), // Allow setting appointments 1 year in advance
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -183,8 +183,8 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       // Create patient object
       final newPatient = Patient(
         fullName: fullname,
-        birthDate:
-        birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+        birthDate: birthDate ??
+            DateTime.now().subtract(const Duration(days: 365 * 30)),
         phoneNumber: phoneNumber,
         firstVisitDate: firstVisitDate ?? DateTime.now(),
         complaint: complaint,
@@ -285,10 +285,10 @@ class AddPatientScreenState extends State<AddPatientScreen> {
             onPressed: _isSaving ? null : _savePatient,
             icon: _isSaving
                 ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Icon(Icons.check, color: Colors.green[700]),
             label: Text(
               'Saqlash',
@@ -327,24 +327,24 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
                           ],
                           image: _images.isNotEmpty
                               ? DecorationImage(
-                            image: FileImage(_images[0]),
-                            fit: BoxFit.cover,
-                          )
+                                  image: FileImage(_images[0]),
+                                  fit: BoxFit.cover,
+                                )
                               : null,
                         ),
                         child: _images.isEmpty
                             ? Icon(
-                          Icons.add_a_photo,
-                          size: 40,
-                          color: Colors.grey[500],
-                        )
+                                Icons.add_a_photo,
+                                size: 40,
+                                color: Colors.grey[500],
+                              )
                             : null,
                       ),
                     ),
@@ -513,7 +513,8 @@ class AddPatientScreenState extends State<AddPatientScreen> {
 
               // Save button
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _savePatient,
                   style: ElevatedButton.styleFrom(
@@ -527,12 +528,12 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                   child: _isSaving
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
-                    'SAQLASH',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                          'SAQLASH',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
 
@@ -592,7 +593,8 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         ),
         filled: true,
         fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       ),
       maxLines: maxLines,
       keyboardType: keyboardType,

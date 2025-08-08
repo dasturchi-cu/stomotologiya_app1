@@ -53,7 +53,7 @@ class Patient extends HiveObject {
     this.imagePath = '',
     this.imagePaths = const [],
     List<DateTime>? visitDates,
-  }) : this.visitDates = visitDates ?? [firstVisitDate];
+  }) : visitDates = visitDates ?? [firstVisitDate];
 
   // Helper method to get all image paths (including legacy single path)
   List<String> getAllImagePaths() {
@@ -67,8 +67,6 @@ class Patient extends HiveObject {
   // Add a new visit date
   void addVisitDate(DateTime visitDate) {
     visitDates.add(visitDate);
-    print("saved");
-
     save(); // Auto-save when adding a visit date
   }
 

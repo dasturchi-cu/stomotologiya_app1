@@ -203,7 +203,7 @@ class _PatientEditState extends State<PatientEdit> {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Bemor ma\'lumotlari yangilandi!')));
-                Navigator.pop(context);
+                Navigator.pop(context, true); // Return true to indicate success
               },
               child: Text('Saqlash'),
             ),

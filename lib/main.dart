@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/adapters.dart';
@@ -20,7 +18,7 @@ void main() async {
 
   // PatientAdapter ni ro'yxatdan o'tkazish
   Hive.registerAdapter(PatientAdapter());
-  // await migrateDatabase();
+  await migrateDatabase();
   await Hive.openBox<Patient>('patients');
 
   runApp(const MyApp());
@@ -41,7 +39,7 @@ class MyApp extends StatelessWidget {
 
 Future<void> migrateDatabase() async {
   try {
-    print('Starting database migration check...');
+    debugPrint('Starting database migration check...');
 
     // Try to open the box without reading data first
     final box = await Hive.openBox<Patient>(
@@ -49,9 +47,18 @@ Future<void> migrateDatabase() async {
       compactionStrategy: (entries, deletedEntries) => deletedEntries > 50,
     );
 
-    // Check migration flags for different migrations
+    // Quick check: if box is empty, no migration needed
+    if (box.isEmpty) {
+      debugPrint('No database migration needed - empty database.');
+      await box.close();
+      return;
+    }
+
+    // Check migration flags for different migrations - optimized
     bool needsImageMigration = false;
     bool needsVisitDatesMigration = false;
+    int checkedCount = 0;
+    const maxCheckCount = 10; // Only check first 10 patients for performance
 
     for (final patient in box.values) {
       // Check if we need to migrate imagePaths
@@ -64,15 +71,17 @@ Future<void> migrateDatabase() async {
         needsVisitDatesMigration = true;
       }
 
-      // If we've found both migration needs, no need to check further
-      if (needsImageMigration && needsVisitDatesMigration) {
+      checkedCount++;
+      // If we've found both migration needs or checked enough, stop
+      if ((needsImageMigration && needsVisitDatesMigration) ||
+          checkedCount >= maxCheckCount) {
         break;
       }
     }
 
     // Perform migrations as needed
     if (needsImageMigration || needsVisitDatesMigration) {
-      print('Starting database migrations...');
+      debugPrint('Starting database migrations...');
 
       // Get all patients
       final patients = box.values.toList();
@@ -87,14 +96,14 @@ Future<void> migrateDatabase() async {
             patient.imagePath.isNotEmpty) {
           patient.imagePaths = [patient.imagePath];
           needsSave = true;
-          print('Migrated images for patient: ${patient.fullName}');
+          debugPrint('Migrated images for patient: ${patient.fullName}');
         }
 
         // Migrate visit dates if needed
         if (needsVisitDatesMigration && patient.visitDates.isEmpty) {
           patient.visitDates = [patient.firstVisitDate];
           needsSave = true;
-          print('Migrated visit dates for patient: ${patient.fullName}');
+          debugPrint('Migrated visit dates for patient: ${patient.fullName}');
         }
 
         // Save the patient if any changes were made
@@ -103,19 +112,19 @@ Future<void> migrateDatabase() async {
         }
       }
 
-      print('Database migration completed successfully.');
+      debugPrint('Database migration completed successfully.');
     } else {
-      print('No database migration needed.');
+      debugPrint('No database migration needed.');
     }
 
     // Close the box so it can be reopened by the app
     await box.close();
   } catch (e) {
-    print('Error during migration: $e');
+    debugPrint('Error during migration: $e');
 
     // Get more detailed error information
     if (e.toString().contains("type 'Null' is not a subtype of type")) {
-      print(
+      debugPrint(
           'Database schema incompatibility detected. Attempting safe recovery...');
 
       try {
@@ -130,11 +139,11 @@ Future<void> migrateDatabase() async {
           await Hive.deleteBoxFromDisk('patients.temp');
         } catch (_) {}
 
-        print(
+        debugPrint(
             'Database reset completed. Any available data has been backed up.');
       } catch (backupError) {
-        print('Error during backup attempt: $backupError');
-        print('Database reset completed without backup.');
+        debugPrint('Error during backup attempt: $backupError');
+        debugPrint('Database reset completed without backup.');
       }
     }
   }

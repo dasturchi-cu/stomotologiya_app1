@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Xatoliklarni boshqarish va foydalanuvchiga xabar berish service
 class ErrorHandler {
@@ -10,15 +9,16 @@ class ErrorHandler {
   ErrorHandler._internal();
 
   // Stream controller
-  final StreamController<UserMessage> _messageController = StreamController<UserMessage>.broadcast();
-  
+  final StreamController<UserMessage> _messageController =
+      StreamController<UserMessage>.broadcast();
+
   // Stream
   Stream<UserMessage> get messageStream => _messageController.stream;
 
   /// Firebase Auth xatoliklarini boshqarish
   String handleFirebaseAuthError(FirebaseAuthException e) {
     String message;
-    
+
     switch (e.code) {
       case 'user-not-found':
         message = 'Bunday email bilan foydalanuvchi topilmadi.';
@@ -67,7 +67,7 @@ class ErrorHandler {
   /// Firestore xatoliklarini boshqarish
   String handleFirestoreError(FirebaseException e) {
     String message;
-    
+
     switch (e.code) {
       case 'permission-denied':
         message = 'Sizda bu operatsiya uchun ruxsat yo\'q.';
@@ -106,7 +106,8 @@ class ErrorHandler {
         message = 'Ma\'lumotlar yo\'qoldi. Qayta urinib ko\'ring.';
         break;
       default:
-        message = 'Ma\'lumotlar bazasi xatoligi: ${e.message ?? "Noma\'lum xatolik"}';
+        message =
+            'Ma\'lumotlar bazasi xatoligi: ${e.message ?? "Noma\'lum xatolik"}';
     }
 
     _logError('Firestore', e.code, e.message ?? '');
@@ -116,7 +117,7 @@ class ErrorHandler {
   /// Umumiy xatoliklarni boshqarish
   String handleGeneralError(dynamic error) {
     String message;
-    
+
     if (error is FirebaseAuthException) {
       return handleFirebaseAuthError(error);
     } else if (error is FirebaseException) {
@@ -144,7 +145,7 @@ class ErrorHandler {
       type: type,
       timestamp: DateTime.now(),
     );
-    
+
     _messageController.add(userMessage);
   }
 
@@ -172,7 +173,7 @@ class ErrorHandler {
   void _logError(String source, String code, String message) {
     final timestamp = DateTime.now().toIso8601String();
     print('[$timestamp] ERROR [$source:$code]: $message');
-    
+
     // Bu yerda xatoliklarni remote logging service ga yuborish mumkin
     // Masalan: Crashlytics, Sentry, yoki boshqa logging service
   }

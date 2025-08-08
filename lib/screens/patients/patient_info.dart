@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:stomotologiya_app/screens/patients/patient_edit_screen.dart';
+import 'package:stomotologiya_app/screens/patients/patient_screen.dart';
 
 import '../../models/patient.dart';
 
@@ -29,6 +29,12 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
+            tooltip: 'Bemor ma\'lumotlarini tahrirlash',
+            onPressed: () => _editPatientInfo(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.photo_library),
+            tooltip: 'Rasmlarni tahrirlash',
             onPressed: () => _editPatientImages(context),
           ),
         ],
@@ -245,6 +251,18 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
                     child: Image.file(
                       File(widget.patient.imagePaths[index]),
                       fit: BoxFit.cover,
+                      cacheWidth: 400, // Optimize memory usage
+                      cacheHeight: 300,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[300],
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 50,
+                            color: Colors.grey,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -264,6 +282,24 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
     );
   }
 
+  void _editPatientInfo(BuildContext context) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PatientEdit(
+          patientIndex: widget.patient.key as int,
+        ),
+      ),
+    );
+
+    // Refresh the screen if patient info was updated
+    if (result == true && mounted) {
+      setState(() {}); // Refresh the UI
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bemor ma\'lumotlari yangilandi')),
+      );
+    }
+  }
+
   void _editPatientImages(BuildContext context) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -274,7 +310,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
     );
 
     // Refresh the screen if images were updated
-    if (result == true) {
+    if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Rasmlar yangilandi')),
       );
@@ -320,10 +356,10 @@ class FullScreenImageViewer extends StatefulWidget {
   final int initialIndex;
 
   const FullScreenImageViewer({
-    Key? key,
+    super.key,
     required this.imagePaths,
     required this.initialIndex,
-  }) : super(key: key);
+  });
 
   @override
   State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
@@ -386,10 +422,10 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
 class AddVisitDialog extends StatefulWidget {
   final Function(DateTime) onAddVisit;
 
-  const AddVisitDialog({Key? key, required this.onAddVisit}) : super(key: key);
+  const AddVisitDialog({super.key, required this.onAddVisit});
 
   @override
-  _AddVisitDialogState createState() => _AddVisitDialogState();
+  State<AddVisitDialog> createState() => _AddVisitDialogState();
 }
 
 class _AddVisitDialogState extends State<AddVisitDialog> {

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +6,7 @@ import '../models/patient.dart';
 import '../service/export2excel.dart';
 
 class ExportScreen extends StatefulWidget {
-  const ExportScreen({Key? key}) : super(key: key);
+  const ExportScreen({super.key});
 
   @override
   State<ExportScreen> createState() => _ExportScreenState();
@@ -141,7 +140,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: Offset(0, 4),
                   ),
@@ -196,7 +195,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: Offset(0, 4),
                   ),
@@ -297,7 +296,8 @@ class _ExportScreenState extends State<ExportScreen> {
                               ? () async {
                                   final result =
                                       await OpenFilex.open(exportedFilePath!);
-                                  if (result.type != ResultType.done) {
+                                  if (result.type != ResultType.done &&
+                                      mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(

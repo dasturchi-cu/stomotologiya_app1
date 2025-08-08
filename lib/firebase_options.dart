@@ -41,41 +41,41 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDemoKey-replace-with-your-actual-key',
-    appId: '1:123456789:web:demo-app-id',
-    messagingSenderId: '123456789',
-    projectId: 'stomotologiya-app-demo',
-    authDomain: 'stomotologiya-app-demo.firebaseapp.com',
-    storageBucket: 'stomotologiya-app-demo.appspot.com',
+    apiKey: 'AIzaSyAJ9SnCPThK6pwYtAWQtvvhjHZW2XkOKwQ',
+    appId: '1:486017725620:web:58e9f6546fe1135c2193e1',
+    messagingSenderId: '486017725620',
+    projectId: 'stomo-track-6050e',
+    authDomain: 'stomo-track-6050e.firebaseapp.com',
+    storageBucket: 'stomo-track-6050e.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDemoKey-replace-with-your-actual-key',
-    appId: '1:123456789:android:demo-app-id',
-    messagingSenderId: '123456789',
-    projectId: 'stomotologiya-app-demo',
+    apiKey: 'AIzaSyAJ9SnCPThK6pwYtAWQtvvhjHZW2XkOKwQ',
+    appId: '1:486017725620:android:58e9f6546fe1135c2193e1',
+    messagingSenderId: '486017725620',
+    projectId: 'stomo-track-6050e',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDemoKey-replace-with-your-actual-key',
-    appId: '1:123456789:ios:demo-app-id',
-    messagingSenderId: '123456789',
-    projectId: 'stomotologiya-app-demo',
+    apiKey: 'AIzaSyAJ9SnCPThK6pwYtAWQtvvhjHZW2XkOKwQ',
+    appId: '1:486017725620:ios:58e9f6546fe1135c2193e1',
+    messagingSenderId: '486017725620',
+    projectId: 'stomo-track-6050e',
     iosBundleId: 'com.example.stomotologiyaApp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDemoKey-replace-with-your-actual-key',
-    appId: '1:123456789:macos:demo-app-id',
-    messagingSenderId: '123456789',
-    projectId: 'stomotologiya-app-demo',
+    apiKey: 'AIzaSyAJ9SnCPThK6pwYtAWQtvvhjHZW2XkOKwQ',
+    appId: '1:486017725620:macos:58e9f6546fe1135c2193e1',
+    messagingSenderId: '486017725620',
+    projectId: 'stomo-track-6050e',
     iosBundleId: 'com.example.stomotologiyaApp',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDemoKey-replace-with-your-actual-key',
-    appId: '1:123456789:windows:demo-app-id',
-    messagingSenderId: '123456789',
-    projectId: 'stomotologiya-app-demo',
+    apiKey: 'AIzaSyAJ9SnCPThK6pwYtAWQtvvhjHZW2XkOKwQ',
+    appId: '1:486017725620:windows:58e9f6546fe1135c2193e1',
+    messagingSenderId: '486017725620',
+    projectId: 'stomo-track-6050e',
   );
 }

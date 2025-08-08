@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../service/auth_service.dart';
 import '../models/app_user.dart';
@@ -5,7 +6,7 @@ import '../models/user_status.dart';
 import 'auth/login_screen.dart';
 import 'home.dart';
 
-/// Asosiy ilova wrapper - authentication va payment enforcement ni boshqaradi
+/// Soddalashtirilgan ilova wrapper - smooth transition bilan
 class AppWrapper extends StatefulWidget {
   const AppWrapper({super.key});
 
@@ -16,9 +17,13 @@ class AppWrapper extends StatefulWidget {
 class _AppWrapperState extends State<AppWrapper> {
   final AuthService _authService = AuthService();
 
-  AppUser? _currentUser;
   UserStatus _currentStatus = UserStatus.checking;
   bool _isInitialized = false;
+
+  // Stream subscriptions
+  StreamSubscription<AppUser?>? _userSubscription;
+  StreamSubscription<UserStatus>?
+      _statusSubscription; // Minimal loading time ko'rsatish uchun
 
   @override
   void initState() {
@@ -28,30 +33,50 @@ class _AppWrapperState extends State<AppWrapper> {
 
   Future<void> _initializeServices() async {
     try {
-      // Auth service ni ishga tushirish
+      // Optimized: Tez splash screen - 500ms
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _currentStatus = UserStatus.unregistered;
+            _isInitialized = true;
+          });
+          debugPrint('500ms splash tugadi - login sahifasiga o\'tish');
+        }
+      });
+
+      // AuthService ni background da ishga tushirish (ChatGPT tavsiyasi)
+      _loadDataInBackground();
+    } catch (e) {
+      debugPrint('Service initialization error: $e');
+      // Xatolik bo'lsa ham login sahifasiga o'tish
+      if (mounted) {
+        setState(() {
+          _currentStatus = UserStatus.unregistered;
+          _isInitialized = true;
+        });
+      }
+    }
+  }
+
+  // ChatGPT tavsiyasi: Asinxron ishlarni alohida metodda qilish
+  void _loadDataInBackground() async {
+    try {
       await _authService.initialize();
 
-      // Streamlarni kuzatish
-      _authService.userStream.listen(_onUserChanged);
-      _authService.statusStream.listen(_onStatusChanged);
+      // Stream larni eshitish
+      _userSubscription = _authService.userStream.listen(_onUserChanged);
+      _statusSubscription = _authService.statusStream.listen(_onStatusChanged);
 
-      setState(() {
-        _isInitialized = true;
-      });
+      debugPrint('AuthService background da tayyor');
     } catch (e) {
-      print('Service larni ishga tushirishda xatolik: $e');
-      setState(() {
-        _currentStatus = UserStatus.error;
-        _isInitialized = true;
-      });
+      debugPrint('Background service initialization error: $e');
     }
   }
 
   void _onUserChanged(AppUser? user) {
+    // User o'zgarishini log qilish
     if (mounted) {
-      setState(() {
-        _currentUser = user;
-      });
+      debugPrint('User o\'zgarishi: ${user?.email ?? 'null'}');
     }
   }
 
@@ -67,154 +92,170 @@ class _AppWrapperState extends State<AppWrapper> {
   Widget build(BuildContext context) {
     // Service lar hali ishga tushmagan bo'lsa loading ko'rsatish
     if (!_isInitialized) {
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Ilova ishga tushirilmoqda...'),
-            ],
-          ),
-        ),
-      );
+      return _buildLoadingScreen('Ilova ishga tushirilmoqda...');
     }
 
-    // Status ga qarab ekranni aniqlash
-    return _buildScreenBasedOnStatus();
+    // Status ga qarab ekranni aniqlash - smooth transition bilan
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: child,
+        );
+      },
+      child: _buildScreenBasedOnStatus(),
+    );
   }
 
   Widget _buildScreenBasedOnStatus() {
     switch (_currentStatus) {
       case UserStatus.unregistered:
-        return const LoginScreen();
-
       case UserStatus.disabled:
-        // Disabled bo'lsa login ekraniga qaytarish
-        return const LoginScreen();
+      case UserStatus.error:
+        // Barcha xatolik va disabled holatlarda login sahifasiga yo'naltirish
+        return const LoginScreen(key: ValueKey('login'));
 
       case UserStatus.active:
-        return HomeScreen();
+        return const HomeScreen();
 
       case UserStatus.checking:
-        return _buildLoadingScreen('Hisobingiz holati tekshirilmoqda...');
-
-      case UserStatus.error:
-        return _buildErrorScreen();
+        return _buildLoadingScreen('Hisobingiz holati tekshirilmoqda...',
+            key: const ValueKey('checking'));
     }
   }
 
-  Widget _buildLoadingScreen(String message) {
+  Widget _buildLoadingScreen(String message, {Key? key}) {
     return Scaffold(
+      key: key,
       backgroundColor: Colors.grey[50],
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo
-            Icon(
-              Icons.medical_services,
-              size: 80,
-              color: Colors.blue[800],
+            // Logo with animation - optimized
+            TweenAnimationBuilder(
+              duration: const Duration(milliseconds: 400),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, double value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[800],
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.medical_services,
+                      size: 60,
+                      color: Colors.white,
+                    ),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
-            Text(
-              'StomoTrack',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue[800],
-              ),
+            // App title with fade-in - optimized
+            TweenAnimationBuilder(
+              duration: const Duration(milliseconds: 500),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, double value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Text(
+                    'StomoTrack',
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[800],
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 48),
 
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-
-            Text(
-              message,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 16,
+            // Loading indicator
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[600]!),
               ),
-              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 24),
+
+            // Message with fade-in
+            TweenAnimationBuilder(
+              duration: const Duration(milliseconds: 1200),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              builder: (context, double value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
+            ),
+
+            // Progress dots animation
+            const SizedBox(height: 32),
+            _buildProgressDots(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildErrorScreen() {
-    return Scaffold(
-      backgroundColor: Colors.red[50],
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
+  Widget _buildProgressDots() {
+    return TweenAnimationBuilder(
+      duration: const Duration(milliseconds: 1500),
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      builder: (context, double value, child) {
+        return Opacity(
+          opacity: value,
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 80,
-                color: Colors.red[600],
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Xatolik yuz berdi',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red[700],
+            children: List.generate(3, (index) {
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.blue[300],
+                  borderRadius: BorderRadius.circular(4),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Hisobingiz holatini tekshirishda xatolik yuz berdi.',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _isInitialized = false;
-                  });
-                  _initializeServices();
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Qayta urinish'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () async {
-                  await _authService.signOut();
-                },
-                child: const Text('Tizimdan chiqish'),
-              ),
-            ],
+              );
+            }),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   @override
   void dispose() {
-    // Service larni tozalash shart emas, chunki ular singleton
+    // Stream subscriptions ni tozalash
+    _userSubscription?.cancel();
+    _statusSubscription?.cancel();
     super.dispose();
   }
 }
