@@ -47,6 +47,11 @@ class _PatientEditState extends State<PatientEdit> {
         text: birthDate != null ? formatDate(birthDate!) : '');
     firstVisitDateController = TextEditingController(
         text: firstVisitDate != null ? formatDate(firstVisitDate!) : '');
+
+    // Initialize language fields
+    speaksRussian = patient?.speaksRussian == 'true';
+    speaksEnglish = patient?.speaksEnglish == 'true';
+    speaksUzbek = patient?.speaksUzbek == 'true';
   }
 
   String formatDate(DateTime date) {
@@ -189,13 +194,11 @@ class _PatientEditState extends State<PatientEdit> {
                   phoneNumber: phoneNumberController.text,
                   firstVisitDate: firstVisitDate ?? DateTime.now(),
                   complaint: complaintController.text,
-
-                  // 'speaksUzbek' ni saqlash
                   address: addressController.text,
                   imagePath: imagePath,
-                  speaksRussian: '',
-                  speaksEnglish: '',
-                  speaksUzbek: '', // Rasm pathini saqlash
+                  speaksRussian: speaksRussian.toString(),
+                  speaksEnglish: speaksEnglish.toString(),
+                  speaksUzbek: speaksUzbek.toString(),
                 );
 
                 var box = await Hive.openBox<Patient>('patients');

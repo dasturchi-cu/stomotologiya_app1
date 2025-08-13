@@ -35,17 +35,43 @@ class _AppWrapperState extends State<AppWrapper> {
     try {
       // Optimized: Tez splash screen - 500ms
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
+        if (!mounted) return;
+        // Faqat checking holatida bo'lsa login sahifasiga tushiramiz
+        if (_currentStatus == UserStatus.checking) {
           setState(() {
             _currentStatus = UserStatus.unregistered;
             _isInitialized = true;
           });
           debugPrint('500ms splash tugadi - login sahifasiga o\'tish');
+        } else if (!_isInitialized) {
+          // Agar status allaqachon o'zgargan bo'lsa, faqat initialized ni yoqamiz
+          setState(() {
+            _isInitialized = true;
+          });
         }
       });
 
-      // AuthService ni background da ishga tushirish (ChatGPT tavsiyasi)
-      _loadDataInBackground();
+      // Avval streamlarga yozilamiz
+      _userSubscription = _authService.userStream.listen(_onUserChanged);
+      _statusSubscription = _authService.statusStream.listen(_onStatusChanged);
+
+      // Keyin AuthService ni ishga tushiramiz
+      await _authService.initialize();
+
+      // Agar foydalanuvchi allaqachon mavjud bo'lsa, darhol Home ga o'tkazamiz
+      final existingUser = _authService.currentUser;
+      if (mounted && existingUser != null) {
+        debugPrint(
+            'Mavjud user topildi: ${existingUser.email}, Home ga o\'tish...');
+        setState(() {
+          _currentStatus = UserStatus.active;
+          _isInitialized = true;
+        });
+      } else {
+        debugPrint('Mavjud user yo\'q, login sahifasiga o\'tish...');
+      }
+
+      debugPrint('AuthService background da tayyor');
     } catch (e) {
       debugPrint('Service initialization error: $e');
       // Xatolik bo'lsa ham login sahifasiga o'tish
@@ -60,30 +86,34 @@ class _AppWrapperState extends State<AppWrapper> {
 
   // ChatGPT tavsiyasi: Asinxron ishlarni alohida metodda qilish
   void _loadDataInBackground() async {
-    try {
-      await _authService.initialize();
-
-      // Stream larni eshitish
-      _userSubscription = _authService.userStream.listen(_onUserChanged);
-      _statusSubscription = _authService.statusStream.listen(_onStatusChanged);
-
-      debugPrint('AuthService background da tayyor');
-    } catch (e) {
-      debugPrint('Background service initialization error: $e');
-    }
+    // Endi initializeServices ichida bajariladi
   }
 
   void _onUserChanged(AppUser? user) {
-    // User o'zgarishini log qilish
-    if (mounted) {
-      debugPrint('User o\'zgarishi: ${user?.email ?? 'null'}');
+    if (!mounted) return;
+    debugPrint('User o\'zgarishi: ${user?.email ?? 'null'}');
+    // Fallback: agar status eventni o'tkazib yuborsak ham, user mavjud bo'lsa Home ga o'tamiz
+    if (user != null) {
+      debugPrint('User mavjud, Home ga o\'tish...');
+      setState(() {
+        _currentStatus = UserStatus.active;
+        _isInitialized = true;
+      });
+    } else {
+      debugPrint('User yo\'q, login sahifasiga o\'tish...');
+      setState(() {
+        _currentStatus = UserStatus.unregistered;
+        _isInitialized = true;
+      });
     }
   }
 
   void _onStatusChanged(UserStatus status) {
     if (mounted) {
+      debugPrint('Status o\'zgarishi: $status');
       setState(() {
         _currentStatus = status;
+        _isInitialized = true;
       });
     }
   }

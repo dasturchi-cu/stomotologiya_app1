@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 part 'patient.g.dart';
 
@@ -77,6 +78,51 @@ class Patient extends HiveObject {
     }
     return visitDates.reduce((max, date) => date.isAfter(max) ? date : max);
   }
+
+  // Convert Patient to Firestore Map
+  Map<String, dynamic> toFirestore() {
+    return {
+      'fullName': fullName,
+      'birthDate': Timestamp.fromDate(birthDate),
+      'phoneNumber': phoneNumber,
+      'firstVisitDate': Timestamp.fromDate(firstVisitDate),
+      'complaint': complaint,
+      'speaksRussian': speaksRussian,
+      'speaksEnglish': speaksEnglish,
+      'speaksUzbek': speaksUzbek,
+      'address': address,
+      'imagePath': imagePath,
+      'imagePaths': imagePaths,
+      'visitDates': visitDates.map((date) => Timestamp.fromDate(date)).toList(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  // Create Patient from Firestore Document
+  factory Patient.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return Patient(
+      fullName: data['fullName'] ?? '',
+      birthDate: (data['birthDate'] as Timestamp).toDate(),
+      phoneNumber: data['phoneNumber'] ?? '',
+      firstVisitDate: (data['firstVisitDate'] as Timestamp).toDate(),
+      complaint: data['complaint'] ?? '',
+      speaksRussian: data['speaksRussian'] ?? '',
+      speaksEnglish: data['speaksEnglish'] ?? '',
+      speaksUzbek: data['speaksUzbek'] ?? '',
+      address: data['address'] ?? '',
+      imagePath: data['imagePath'] ?? '',
+      imagePaths: List<String>.from(data['imagePaths'] ?? []),
+      visitDates: (data['visitDates'] as List<dynamic>?)
+              ?.map((timestamp) => (timestamp as Timestamp).toDate())
+              .toList() ??
+          [],
+    );
+  }
+
+  // Get Firestore document ID (for updates)
+  String? get firestoreId => box?.key as String?;
 
   Patient copyWith({
     String? fullName,

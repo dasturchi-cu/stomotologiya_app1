@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// Firestore o'chirildi - faqat Auth ishlatamiz
-import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
 import '../models/user_status.dart';
 
@@ -14,7 +12,7 @@ class AuthService {
 
   // Firebase instances
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  final GoogleAuthProvider _googleProvider = GoogleAuthProvider();
 
   // Stream controllerlar
   final StreamController<AppUser?> _userController =
@@ -202,13 +200,57 @@ class AuthService {
     }
   }
 
-  /// Google bilan kirish - Firebase Auth (hozircha ishlamaydi)
+  /// Google bilan kirish - Firebase Auth (provider-based)
   Future<AppUser?> signInWithGoogle() async {
-    debugPrint(
-        'Google Sign-In hozircha ishlamaydi - OAuth konfiguratsiya kerak');
-    _statusController.add(UserStatus.error);
-    throw Exception(
-        'Google Sign-In hozircha ishlamaydi. OAuth konfiguratsiya qilinmagan.');
+    try {
+      _statusController.add(UserStatus.checking);
+
+      // Web: popup, Mobile/Desktop: provider
+      if (kIsWeb) {
+        final credential = await _firebaseAuth.signInWithPopup(_googleProvider);
+        if (credential.user != null) {
+          return _currentUser;
+        }
+      } else {
+        final credential =
+            await _firebaseAuth.signInWithProvider(_googleProvider);
+        if (credential.user != null) {
+          return _currentUser;
+        }
+      }
+
+      throw Exception(
+          'Google bilan kirish amalga oshmadi. Iltimos, qayta urinib ko\'ring.');
+    } on FirebaseAuthException catch (e) {
+      _statusController.add(UserStatus.error);
+
+      // Mashhur xatoliklarni tarjima qilish
+      switch (e.code) {
+        case 'account-exists-with-different-credential':
+          throw Exception(
+              'Ushbu email boshqa provider bilan bog\'langan. Avval o\'sha usulda kiring.');
+        case 'invalid-credential':
+          throw Exception(
+              'Google hisob ma\'lumotlari noto\'g\'ri yoki muddati o\'tgan.');
+        case 'operation-not-allowed':
+          throw Exception(
+              'Google bilan kirish o\'chirilgan. Admin bilan bog\'laning.');
+        case 'user-disabled':
+          throw Exception('Hisobingiz o\'chirilgan.');
+        case 'network-request-failed':
+          throw Exception('Internet ulanishi yo\'q. Ulanishni tekshiring.');
+        default:
+          final message = e.message ?? '';
+          if (message.contains('DEVELOPER_ERROR') || message.contains('10:')) {
+            throw Exception(
+                'Google OAuth konfiguratsiyasi kerak. Firebase konsolida Android ilovasi uchun SHA-1 va SHA-256 fingerprintlarni qo\'shing va Google Sign-In ni yoqing.');
+          }
+          throw Exception('Google bilan kirish xatoligi: ${e.code}');
+      }
+    } catch (e) {
+      _statusController.add(UserStatus.error);
+      throw Exception(e.toString());
+    }
   }
 
   /// Tizimdan chiqish - Firebase only
@@ -216,7 +258,6 @@ class AuthService {
     try {
       await Future.wait([
         _firebaseAuth.signOut(),
-        _googleSignIn.signOut(),
       ]);
 
       _currentUser = null;

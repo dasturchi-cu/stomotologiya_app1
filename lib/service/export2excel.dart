@@ -17,6 +17,8 @@ class ExportService {
   // Export patients data to Excel file
   static Future<String?> exportPatientsToExcel(BuildContext context) async {
     try {
+      // Android 10+ uchun ilovaning ichki hujjatlar papkasiga yozamiz (ruxsat talab qilinmaydi)
+
       final patientsBox = Hive.box<Patient>('patients');
       final patients = patientsBox.values.toList();
 
@@ -31,11 +33,18 @@ class ExportService {
       final sheet = excel['Patients'];
 
       final headers = [
-        'ID', 'F.I.O', 'Tug‘ilgan sana', 'Telefon raqami', 'Birinchi tashrif', 'Shikoyat', 'Manzil',
+        'ID',
+        'F.I.O',
+        'Tug‘ilgan sana',
+        'Telefon raqami',
+        'Birinchi tashrif',
+        'Shikoyat',
+        'Manzil',
       ];
 
       for (var i = 0; i < headers.length; i++) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+        final cell =
+            sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
         cell.value = TextCellValue(headers[i]);
         cell.cellStyle = CellStyle(
           bold: true,
@@ -48,13 +57,27 @@ class ExportService {
         final patient = patients[i];
         final row = i + 1;
 
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue((i + 1).toString());
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(patient.fullName);
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)).value = TextCellValue(_formatDate(patient.birthDate));
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row)).value = TextCellValue(patient.phoneNumber);
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row)).value = TextCellValue(_formatDate(patient.firstVisitDate));
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row)).value = TextCellValue(patient.complaint);
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row)).value = TextCellValue(patient.address);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+            .value = TextCellValue((i + 1).toString());
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
+            .value = TextCellValue(patient.fullName);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
+            .value = TextCellValue(_formatDate(patient.birthDate));
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
+            .value = TextCellValue(patient.phoneNumber);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
+            .value = TextCellValue(_formatDate(patient.firstVisitDate));
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
+            .value = TextCellValue(patient.complaint);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row))
+            .value = TextCellValue(patient.address);
       }
 
       for (var i = 0; i < headers.length; i++) {
@@ -64,7 +87,8 @@ class ExportService {
       final directory = await getApplicationDocumentsDirectory();
       final now = DateTime.now();
       final formattedDate = DateFormat('yyyy-MM-dd_HH-mm').format(now);
-      final filePath = '${directory.path}/bemor_malumotlari_$formattedDate.xlsx';
+      final filePath =
+          '${directory.path}/bemor_malumotlari_$formattedDate.xlsx';
       final file = File(filePath);
       final fileBytes = excel.encode();
 

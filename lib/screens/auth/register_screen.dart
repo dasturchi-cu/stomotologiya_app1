@@ -47,9 +47,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // Navigation avtomatik ravishda main wrapper tomonidan boshqariladi
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -69,9 +71,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await _authService.signInWithGoogle();
       // Navigation avtomatik ravishda main wrapper tomonidan boshqariladi
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {

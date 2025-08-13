@@ -9,8 +9,8 @@ import 'package:stomotologiya_app/screens/export.dart';
 import 'package:stomotologiya_app/screens/patients/add_patient_screen.dart';
 import 'package:stomotologiya_app/screens/patients/patient_info.dart';
 import 'package:stomotologiya_app/screens/patients/patient_screen.dart';
-import 'package:stomotologiya_app/screens/settings_screen.dart';
 import '../models/patient.dart';
+import '../service/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = '';
   var box = Hive.box<Patient>('patients');
   bool _isLoading = false;
+  final _authService = AuthService();
 
   // Performance optimization: Cache filtered patients
   List<Patient>? _cachedFilteredPatients;
@@ -146,16 +147,16 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: Colors.blue[800]),
-            tooltip: 'Sozlamalar',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-          ),
+          // IconButton(
+          //   icon: Icon(Icons.settings_outlined, color: Colors.blue[800]),
+          //   tooltip: 'Sozlamalar',
+          //   onPressed: () {
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          //     );
+          //   },
+          // ),
         ],
       ),
       body: Column(
@@ -604,15 +605,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('Sozlamalar'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text(
+              'Tizimdan chiqish',
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: () => _showLogoutDialog(),
           ),
         ],
       ),
@@ -672,6 +670,34 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             child: Text(
               'O\'chirish',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tizimdan chiqish'),
+        content: const Text('Haqiqatan ham tizimdan chiqishni xohlaysizmi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Bekor qilish'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _authService.signOut();
+              if (mounted) {
+                Navigator.pop(context);
+              }
+            },
+            child: const Text(
+              'Chiqish',
               style: TextStyle(color: Colors.red),
             ),
           ),
