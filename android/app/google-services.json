@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "486017725620",
+    "project_id": "stomo-track-6050e",
+    "storage_bucket": "stomo-track-6050e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:486017725620:android:58e9f6546fe1135c2193e1",
+        "android_client_info": {
+          "package_name": "com.example.stomotologiya_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "486017725620-bes4pisu1avk2k6ns4a3e68bf4j66kkl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.stomotologiya_app",
+            "certificate_hash": "a34d447368978029dd85aed2406e3eb6e1a67082"
+          }
+        },
+        {
+          "client_id": "486017725620-gljvll3jich7nelo8qkkncoojd7q4m3c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJ9SnCPThK6pwYtAWQtvvhjHZW2XkOKwQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "486017725620-gljvll3jich7nelo8qkkncoojd7q4m3c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "486017725620-vuppi9mas7b3ctirpnsls97dq0sgg2ee.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.stomotologiyaApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
