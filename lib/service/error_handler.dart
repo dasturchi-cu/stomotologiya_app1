@@ -57,7 +57,7 @@ class ErrorHandler {
         message = 'Internet aloqasi yo\'q. Ulanishni tekshiring.';
         break;
       default:
-        message = 'Xatolik yuz berdi: ${e.message ?? "Noma\'lum xatolik"}';
+        message = 'Xatolik yuz berdi: ${e.message ?? "Noma'lum xatolik"}';
     }
 
     _logError('FirebaseAuth', e.code, e.message ?? '');
@@ -107,7 +107,7 @@ class ErrorHandler {
         break;
       default:
         message =
-            'Ma\'lumotlar bazasi xatoligi: ${e.message ?? "Noma\'lum xatolik"}';
+            'Ma\'lumotlar bazasi xatoligi: ${e.message ?? "Noma'lum xatolik"}';
     }
 
     _logError('Firestore', e.code, e.message ?? '');

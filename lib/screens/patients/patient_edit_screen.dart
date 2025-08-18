@@ -10,8 +10,7 @@ import '../../models/patient.dart';
 class PatientImagesEditScreen extends StatefulWidget {
   final Patient patient;
 
-  const PatientImagesEditScreen({Key? key, required this.patient})
-      : super(key: key);
+  const PatientImagesEditScreen({super.key, required this.patient});
 
   @override
   State<PatientImagesEditScreen> createState() =>
@@ -49,7 +48,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
       }
     } else {
       // For gallery, allow multiple selection
-      final List<XFile>? images = await _picker.pickMultiImage(
+      final List<XFile> images = await _picker.pickMultiImage(
         imageQuality: 80,
       );
 
@@ -124,7 +123,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
       if (patientKey != null) {
         print(patientKey);
         // Update the patient in the database
-        await patientsBox.put(patientKey, updatedPatient!);
+        await patientsBox.put(patientKey, updatedPatient);
 
         // Update the patient object reference to reflect changes
         widget.patient.imagePaths = _imagePaths;

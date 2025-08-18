@@ -8,7 +8,7 @@ import '../../models/patient.dart';
 class PatientEdit extends StatefulWidget {
   final int patientIndex; // Tahrir qilinayotgan bemorning indeksi
 
-  PatientEdit({required this.patientIndex});
+  const PatientEdit({super.key, required this.patientIndex});
 
   @override
   _PatientEditState createState() => _PatientEditState();

@@ -3,8 +3,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:stomotologiya_app/models/patient.dart';
 
-
 class PatientForm extends StatefulWidget {
+  const PatientForm({super.key});
+
   @override
   _PatientFormState createState() => _PatientFormState();
 }
@@ -60,7 +61,8 @@ class _PatientFormState extends State<PatientForm> {
                   Expanded(
                     child: TextField(
                       controller: firstVisitDateController,
-                      decoration: InputDecoration(labelText: 'Birinchi tashrif sanasi'),
+                      decoration:
+                          InputDecoration(labelText: 'Birinchi tashrif sanasi'),
                       readOnly: true,
                     ),
                   ),

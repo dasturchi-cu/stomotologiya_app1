@@ -3,12 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
-import 'package:stomotologiya_app/screens/analytics_screen.dart';
-import 'package:stomotologiya_app/screens/appointments_screen.dart';
-import 'package:stomotologiya_app/screens/export.dart';
-import 'package:stomotologiya_app/screens/patients/add_patient_screen.dart';
-import 'package:stomotologiya_app/screens/patients/patient_info.dart';
-import 'package:stomotologiya_app/screens/patients/patient_screen.dart';
+import 'package:stomotologiya_app/routes.dart';
 import '../models/patient.dart';
 import '../service/auth_service.dart';
 
@@ -25,10 +20,6 @@ class _HomeScreenState extends State<HomeScreen> {
   var box = Hive.box<Patient>('patients');
   bool _isLoading = false;
   final _authService = AuthService();
-
-  // Performance optimization: Cache filtered patients
-  List<Patient>? _cachedFilteredPatients;
-  String _lastSearchQuery = '';
 
   // Debounce timer for search
   Timer? _searchDebounceTimer;
@@ -56,7 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _searchQuery = _searchController.text;
-          _cachedFilteredPatients = null; // Clear cache when search changes
         });
       }
     });
@@ -67,9 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoading = true;
     });
 
-    // Clear cache to force refresh
-    _clearCache();
-
     // Simulate a small delay for refresh animation
     await Future.delayed(const Duration(milliseconds: 300));
 
@@ -78,39 +65,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _clearCache() {
-    _cachedFilteredPatients = null;
-    _lastSearchQuery = '';
-  }
+  void _clearCache() {}
 
   List<Patient> _getFilteredPatients() {
-    // Use cached results if search query hasn't changed
-    if (_cachedFilteredPatients != null && _lastSearchQuery == _searchQuery) {
-      return _cachedFilteredPatients!;
-    }
-
-    List<Patient> result;
-
     if (_searchQuery.isEmpty) {
-      result = box.values.toList();
-    } else {
-      final query = _searchQuery.toLowerCase();
-      result = box.values.where((patient) {
-        final fullNameLower = patient.fullName.toLowerCase();
-        final phoneNumber = patient.phoneNumber;
-        final complaintLower = patient.complaint.toLowerCase();
-
-        return fullNameLower.contains(query) ||
-            phoneNumber.contains(_searchQuery) ||
-            complaintLower.contains(query);
-      }).toList();
+      return box.values.toList();
     }
-
-    // Cache the results for better performance
-    _cachedFilteredPatients = result;
-    _lastSearchQuery = _searchQuery;
-
-    return result;
+    final query = _searchQuery.toLowerCase();
+    return box.values.where((patient) {
+      final fullNameLower = patient.fullName.toLowerCase();
+      final phoneNumber = patient.phoneNumber;
+      final complaintLower = patient.complaint.toLowerCase();
+      return fullNameLower.contains(query) ||
+          phoneNumber.contains(_searchQuery) ||
+          complaintLower.contains(query);
+    }).toList();
   }
 
   @override
@@ -134,17 +103,13 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: Icon(Icons.file_download, color: Colors.blue[800]),
             tooltip: 'Excel formatiga eksport',
-            onPressed: () => Navigator.push(
-                context, MaterialPageRoute(builder: (_) => ExportScreen())),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.export),
           ),
           IconButton(
             icon: Icon(Icons.analytics_outlined, color: Colors.blue[800]),
             tooltip: 'Statistika',
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-              );
+              Navigator.pushNamed(context, AppRoutes.analytics);
             },
           ),
           // IconButton(
@@ -272,8 +237,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          final result = await Navigator.push(
-              context, MaterialPageRoute(builder: (_) => AddPatientScreen()));
+          final result =
+              await Navigator.pushNamed(context, AppRoutes.addPatient);
           // Clear cache when returning from add patient screen
           if (result == true) {
             _clearCache();
@@ -318,10 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => AddPatientScreen()),
-              );
+              Navigator.pushNamed(context, AppRoutes.addPatient);
             },
             icon: Icon(Icons.person_add),
             label: Text('Yangi bemor qo\'shish'),
@@ -359,11 +321,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () {
-              Navigator.push(
+              Navigator.pushNamed(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => PatientDetailsScreen(patient: patient),
-                ),
+                AppRoutes.patientDetails,
+                arguments: patient,
               );
             },
             child: _buildPatientCardContent(patient, hasRecentVisit, index),
@@ -473,22 +434,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          // Actions
-          IconButton(
-            icon: Icon(Icons.edit_outlined, color: Colors.blue[600]),
-            tooltip: 'Tahrirlash',
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PatientEdit(patientIndex: index),
-                ),
-              );
-              if (result == true) {
-                _clearCache(); // Refresh the list
-              }
-            },
-          ),
+          // Actions (edit removed by request)
           IconButton(
             icon: Icon(Icons.delete_outline, color: Colors.red[400]),
             tooltip: 'O\'chirish',
@@ -530,89 +476,179 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDrawer() {
+    final user = _authService.currentUser;
+
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue[800],
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.medical_services,
-                  size: 48,
-                  color: Colors.white,
+      backgroundColor: Colors.grey[50],
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Container(
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.blue[700]!,
+                    Colors.blue[400]!,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                SizedBox(height: 16),
-                Text(
-                  'StomoTrack',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
                   ),
-                ),
-                Text(
-                  'Bemorlar boshqaruvi',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
+                ],
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    child: const Icon(
+                      Icons.medical_services,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'StomoTrack',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          user?.displayName?.isNotEmpty == true
+                              ? user!.displayName!
+                              : 'Bemorlar boshqaruvi',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text('Bosh sahifa'),
-            onTap: () => Navigator.pop(context),
-          ),
-          ListTile(
-            leading: const Icon(Icons.calendar_today),
-            title: const Text('Uchrashuvlar'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _buildDrawerItem(
                 context,
-                MaterialPageRoute(builder: (_) => const AppointmentsScreen()),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.analytics),
-            title: const Text('Statistika'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.file_download),
-            title: const Text('Eksport'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => ExportScreen()),
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text(
-              'Tizimdan chiqish',
-              style: TextStyle(color: Colors.red),
+                icon: Icons.home_rounded,
+                label: 'Bosh sahifa',
+                onTap: () => Navigator.pop(context),
+              ),
             ),
-            onTap: () => _showLogoutDialog(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _buildDrawerItem(
+                context,
+                icon: Icons.analytics_rounded,
+                label: 'Statistika',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, AppRoutes.analytics);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _buildDrawerItem(
+                context,
+                icon: Icons.file_download_rounded,
+                label: 'Eksport',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, AppRoutes.export);
+                },
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey[300]!, height: 1)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Logout (hozircha yashirilgan)
+            // Padding(
+            //   padding: const EdgeInsets.symmetric(horizontal: 12),
+            //   child: _buildDrawerItem(
+            //     context,
+            //     icon: Icons.logout_rounded,
+            //     label: 'Tizimdan chiqish',
+            //     iconColor: Colors.red,
+            //     textColor: Colors.red,
+            //     onTap: () => _showLogoutDialog(),
+            //   ),
+            // ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    Color? iconColor,
+    Color? textColor,
+    required VoidCallback onTap,
+  }) {
+    final baseIconColor = iconColor ?? Colors.blueGrey[700];
+    final baseTextColor = textColor ?? Colors.blueGrey[900];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: baseIconColor),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: baseTextColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -670,34 +706,6 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             child: Text(
               'O\'chirish',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tizimdan chiqish'),
-        content: const Text('Haqiqatan ham tizimdan chiqishni xohlaysizmi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Bekor qilish'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await _authService.signOut();
-              if (mounted) {
-                Navigator.pop(context);
-              }
-            },
-            child: const Text(
-              'Chiqish',
               style: TextStyle(color: Colors.red),
             ),
           ),

@@ -4,7 +4,6 @@ import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/patient.dart';
 
@@ -107,13 +106,23 @@ class ExportService {
   }
 
   // Share the exported Excel file
-  static Future<void> shareExcelFile(
-      BuildContext context, String filePath) async {
+  static Future<void> shareExcelFile(String filePath) async {
     try {
       final file = File(filePath);
       if (await file.exists()) {
+        // Ensure correct filename and MIME type for better compatibility
+        final fileName = file.uri.pathSegments.isNotEmpty
+            ? file.uri.pathSegments.last
+            : 'export.xlsx';
         await Share.shareXFiles(
-          [XFile(filePath)],
+          [
+            XFile(
+              filePath,
+              name: fileName,
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+          ],
           subject: 'Bemorlar ro\'yxati',
           text: 'Bemorlar ma\'lumotlari',
         );

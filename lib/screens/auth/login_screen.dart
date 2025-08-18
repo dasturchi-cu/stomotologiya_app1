@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../service/auth_service.dart';
-import 'register_screen.dart';
+import '../../routes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,8 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-
-      // Navigation avtomatik ravishda main wrapper tomonidan boshqariladi
+      // Navigatsiya AppWrapper orqali boshqariladi
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -64,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await _authService.signInWithGoogle();
-      // Navigation avtomatik ravishda main wrapper tomonidan boshqariladi
+      // Navigatsiya AppWrapper orqali boshqariladi
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -93,15 +92,12 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-
-                // Logo va sarlavha
                 Icon(
                   Icons.medical_services,
                   size: 80,
                   color: Colors.blue[800],
                 ),
                 const SizedBox(height: 24),
-
                 Text(
                   'StomoTrack',
                   textAlign: TextAlign.center,
@@ -112,7 +108,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 Text(
                   'Stomatologiya klinikasi uchun',
                   textAlign: TextAlign.center,
@@ -122,8 +117,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 48),
-
-                // Xatolik xabari
                 if (_errorMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -139,8 +132,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-
-                // Email maydoni
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -164,8 +155,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Parol maydoni
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -201,8 +190,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
-
-                // Kirish tugmasi
                 ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
@@ -233,8 +220,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                 ),
                 const SizedBox(height: 16),
-
-                // "YOKI" ajratuvchi
                 Row(
                   children: [
                     Expanded(child: Divider(color: Colors.grey[400])),
@@ -252,8 +237,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Google Sign-In tugmasi
                 OutlinedButton.icon(
                   onPressed: _isLoading ? null : _signInWithGoogle,
                   style: OutlinedButton.styleFrom(
@@ -278,8 +261,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Ro'yxatdan o'tish havolasi
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -289,12 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const RegisterScreen(),
-                          ),
-                        );
+                        Navigator.pushNamed(context, AppRoutes.register);
                       },
                       child: Text(
                         'Ro\'yxatdan o\'ting',

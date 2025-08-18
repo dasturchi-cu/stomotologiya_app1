@@ -1,5 +1,4 @@
 import 'package:hive/hive.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 part 'patient.g.dart';
 
@@ -33,13 +32,13 @@ class Patient extends HiveObject {
   final String address;
 
   @HiveField(9)
-  String imagePath; // Kept for backward compatibility
+  String imagePath; // Eski versiyalar bilan moslik uchun
 
   @HiveField(10)
-  List<String> imagePaths; // Field for multiple images
+  List<String> imagePaths; // Bir nechta rasm uchun
 
   @HiveField(11)
-  List<DateTime> visitDates; // New field for tracking visit dates
+  List<DateTime> visitDates; // Bemor tashriflari tarixi
 
   Patient({
     required this.fullName,
@@ -56,7 +55,7 @@ class Patient extends HiveObject {
     List<DateTime>? visitDates,
   }) : visitDates = visitDates ?? [firstVisitDate];
 
-  // Helper method to get all image paths (including legacy single path)
+  /// Barcha rasmlar ro‘yxatini qaytaradi
   List<String> getAllImagePaths() {
     List<String> allPaths = List.from(imagePaths);
     if (imagePath.isNotEmpty && !imagePaths.contains(imagePath)) {
@@ -65,13 +64,13 @@ class Patient extends HiveObject {
     return allPaths;
   }
 
-  // Add a new visit date
+  /// Yangi tashrif qo‘shish
   void addVisitDate(DateTime visitDate) {
     visitDates.add(visitDate);
-    save(); // Auto-save when adding a visit date
+    save(); // Hive’da avtomatik saqlash
   }
 
-  // Get the most recent visit date
+  /// Oxirgi tashrif sanasi
   DateTime get lastVisitDate {
     if (visitDates.isEmpty) {
       return firstVisitDate;
@@ -79,51 +78,7 @@ class Patient extends HiveObject {
     return visitDates.reduce((max, date) => date.isAfter(max) ? date : max);
   }
 
-  // Convert Patient to Firestore Map
-  Map<String, dynamic> toFirestore() {
-    return {
-      'fullName': fullName,
-      'birthDate': Timestamp.fromDate(birthDate),
-      'phoneNumber': phoneNumber,
-      'firstVisitDate': Timestamp.fromDate(firstVisitDate),
-      'complaint': complaint,
-      'speaksRussian': speaksRussian,
-      'speaksEnglish': speaksEnglish,
-      'speaksUzbek': speaksUzbek,
-      'address': address,
-      'imagePath': imagePath,
-      'imagePaths': imagePaths,
-      'visitDates': visitDates.map((date) => Timestamp.fromDate(date)).toList(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-  }
-
-  // Create Patient from Firestore Document
-  factory Patient.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return Patient(
-      fullName: data['fullName'] ?? '',
-      birthDate: (data['birthDate'] as Timestamp).toDate(),
-      phoneNumber: data['phoneNumber'] ?? '',
-      firstVisitDate: (data['firstVisitDate'] as Timestamp).toDate(),
-      complaint: data['complaint'] ?? '',
-      speaksRussian: data['speaksRussian'] ?? '',
-      speaksEnglish: data['speaksEnglish'] ?? '',
-      speaksUzbek: data['speaksUzbek'] ?? '',
-      address: data['address'] ?? '',
-      imagePath: data['imagePath'] ?? '',
-      imagePaths: List<String>.from(data['imagePaths'] ?? []),
-      visitDates: (data['visitDates'] as List<dynamic>?)
-              ?.map((timestamp) => (timestamp as Timestamp).toDate())
-              .toList() ??
-          [],
-    );
-  }
-
-  // Get Firestore document ID (for updates)
-  String? get firestoreId => box?.key as String?;
-
+  /// Bemor obyektidan nusxa olish (copyWith)
   Patient copyWith({
     String? fullName,
     DateTime? birthDate,

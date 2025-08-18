@@ -63,7 +63,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       }
     } else {
       // For gallery, allow multiple selection
-      final List<XFile>? images = await _picker.pickMultiImage(
+      final List<XFile> images = await _picker.pickMultiImage(
         imageQuality: 80,
       );
 
@@ -209,7 +209,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         // Save each image
         for (int i = 0; i < _images.length; i++) {
           final imagePath =
-              '${imageDirectory.path}/${DateTime.now().millisecondsSinceEpoch}_${i}.jpg';
+              '${imageDirectory.path}/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
           await _images[i].copy(imagePath);
           savedImagePaths.add(imagePath);
         }
@@ -222,16 +222,19 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       await patientsBox.add(newPatient);
 
       // Show success and navigate back
+      // ...existing code...
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${fullname} muvaffaqiyatli qo\'shildi'),
+            content: Text('$fullname muvaffaqiyatli qo\'shildi'),
             backgroundColor: Colors.green[700],
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pop(context);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
       }
+// ...existing code...
     } catch (e) {
       // Show error
       if (mounted) {

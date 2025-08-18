@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'patient.dart'; // Yaratilgan modelga import
-import 'patient_edit.dart'; // Tahrirlash sahifasiga import
+import '../routes.dart';
 
 class PatientList extends StatelessWidget {
+  const PatientList({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -20,17 +22,34 @@ class PatientList extends StatelessWidget {
             itemBuilder: (context, index) {
               Patient patient = box.getAt(index)!;
               return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                  child: Text(
+                    (patient.fullName.isNotEmpty ? patient.fullName[0] : '?').toUpperCase(),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 title: Text(patient.fullName),
                 subtitle: Text('Telefon: ${patient.phoneNumber}'),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  // Bemorni tahrir qilish sahifasiga o‘tkazish
-                  Navigator.push(
+                  Navigator.pushNamed(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => PatientEdit(patientIndex: index),
-                    ),
+                    AppRoutes.patientDetails,
+                    arguments: patient,
                   );
                 },
+
+                // Bemorni tahrir qilish sahifasiga o‘tkazish (named route)
+                //   Navigator.pushNamed(
+                //     context,
+                //     AppRoutes.patientEdit,
+                //     arguments: index,
+                //   );
+                // },
               );
             },
           );

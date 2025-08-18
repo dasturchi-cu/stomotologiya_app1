@@ -91,6 +91,9 @@ class _ExportScreenState extends State<ExportScreen> {
           exportedFilePath = filePath;
           isExporting = false;
         });
+        // Immediately open share sheet for convenience
+        if (!mounted) return;
+        await ExportService.shareExcelFile(filePath);
       } else {
         setState(() {
           isExporting = false;
@@ -314,8 +317,9 @@ class _ExportScreenState extends State<ExportScreen> {
                         SizedBox(width: 12),
                         ElevatedButton.icon(
                           onPressed: () {
-                            ExportService.shareExcelFile(
-                                context, exportedFilePath!);
+                            if (exportedFilePath != null) {
+                              ExportService.shareExcelFile(exportedFilePath!);
+                            }
                           },
                           icon: Icon(Icons.share),
                           label: Text('Ulashish'),

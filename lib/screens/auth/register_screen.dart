@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../service/auth_service.dart';
+import '../../routes.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -45,7 +46,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         displayName: _nameController.text.trim(),
       );
 
-      // Navigation avtomatik ravishda main wrapper tomonidan boshqariladi
+      // Home sahifaga o'tish (named route)
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.home,
+          (route) => false,
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -69,7 +77,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       await _authService.signInWithGoogle();
-      // Navigation avtomatik ravishda main wrapper tomonidan boshqariladi
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.home,
+          (route) => false,
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -106,8 +120,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 20),
-
-                // Sarlavha
                 Text(
                   'Ro\'yxatdan o\'tish',
                   textAlign: TextAlign.center,
@@ -118,7 +130,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 Text(
                   'Yangi hisob yarating',
                   textAlign: TextAlign.center,
@@ -128,8 +139,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-
-                // Xatolik xabari
                 if (_errorMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -145,8 +154,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-
-                // Ism maydoni
                 TextFormField(
                   controller: _nameController,
                   decoration: InputDecoration(
@@ -169,8 +176,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Email maydoni
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -194,8 +199,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Parol maydoni
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -231,8 +234,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Parolni tasdiqlash maydoni
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
@@ -268,8 +269,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
-
-                // Ro'yxatdan o'tish tugmasi
                 ElevatedButton(
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
@@ -300,8 +299,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                 ),
                 const SizedBox(height: 16),
-
-                // "YOKI" ajratuvchi
                 Row(
                   children: [
                     Expanded(child: Divider(color: Colors.grey[400])),
@@ -319,8 +316,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Google Sign-In tugmasi
                 OutlinedButton.icon(
                   onPressed: _isLoading ? null : _signInWithGoogle,
                   style: OutlinedButton.styleFrom(
@@ -345,8 +340,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Kirish havolasi
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

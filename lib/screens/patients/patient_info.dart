@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:stomotologiya_app/screens/patients/patient_edit_screen.dart';
-import 'package:stomotologiya_app/screens/patients/patient_screen.dart';
+import '../../routes.dart';
 
 import '../../models/patient.dart';
 
@@ -27,11 +26,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: 'Bemor ma\'lumotlarini tahrirlash',
-            onPressed: () => _editPatientInfo(context),
-          ),
           IconButton(
             icon: const Icon(Icons.photo_library),
             tooltip: 'Rasmlarni tahrirlash',
@@ -216,12 +210,10 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
 
               // Refresh the screen
               if (context.mounted) {
-                Navigator.pushReplacement(
+                Navigator.pushReplacementNamed(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        PatientDetailsScreen(patient: widget.patient),
-                  ),
+                  AppRoutes.patientDetails,
+                  arguments: widget.patient,
                 );
               }
             },
@@ -272,41 +264,19 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
   }
 
   void _showFullScreenImage(BuildContext context, int initialIndex) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => FullScreenImageViewer(
-          imagePaths: widget.patient.imagePaths,
-          initialIndex: initialIndex,
-        ),
-      ),
+    Navigator.of(context).pushNamed(
+      AppRoutes.imageViewer,
+      arguments: {
+        'paths': widget.patient.imagePaths,
+        'index': initialIndex,
+      },
     );
-  }
-
-  void _editPatientInfo(BuildContext context) async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PatientEdit(
-          patientIndex: widget.patient.key as int,
-        ),
-      ),
-    );
-
-    // Refresh the screen if patient info was updated
-    if (result == true && mounted) {
-      setState(() {}); // Refresh the UI
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bemor ma\'lumotlari yangilandi')),
-      );
-    }
   }
 
   void _editPatientImages(BuildContext context) async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PatientImagesEditScreen(
-          patient: widget.patient,
-        ),
-      ),
+    final result = await Navigator.of(context).pushNamed(
+      AppRoutes.patientImagesEdit,
+      arguments: widget.patient,
     );
 
     // Refresh the screen if images were updated
