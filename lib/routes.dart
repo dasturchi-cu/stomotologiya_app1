@@ -11,6 +11,8 @@ import 'screens/patients/add_patient_screen.dart';
 import 'screens/patients/patient_info.dart';
 import 'screens/patients/patient_screen.dart';
 import 'screens/patients/patient_edit_screen.dart';
+import 'screens/patient_list_screen.dart';
+import 'screens/image_viewer_screen.dart';
 
 import 'models/patient.dart';
 
@@ -30,6 +32,7 @@ class AppRoutes {
   static const String patientEdit = '/patients/edit';
   static const String patientImagesEdit = '/patients/images-edit';
   static const String imageViewer = '/images/viewer';
+  static const String patientList = '/patients/list';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -73,18 +76,27 @@ class AppRoutes {
         return _errorRoute('PatientImagesEdit: Patient argument kerak');
       case imageViewer:
         final arg4 = settings.arguments;
-        if (arg4 is Map &&
-            arg4['paths'] is List<String> &&
-            arg4['index'] is int) {
+        if (arg4 is Map) {
+          final imagePaths = (arg4['imagePaths'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+          final initialIndex = (arg4['initialIndex'] as int?) ?? 0;
+
+          if (imagePaths.isEmpty) {
+            return _errorRoute('Image Viewer: imagePaths bo\'sh bo\'lmasligi kerak');
+          }
+
           return MaterialPageRoute(
-            builder: (_) => FullScreenImageViewer(
-              imagePaths: List<String>.from(arg4['paths'] as List),
-              initialIndex: arg4['index'] as int,
+            builder: (_) => ImageViewerScreen(
+              imagePaths: imagePaths,
+              initialIndex: initialIndex,
             ),
           );
         }
-        return _errorRoute(
-            'ImageViewer: {paths: List<String>, index: int} kerak');
+        return _errorRoute('Image Viewer: Invalid arguments');
+      case patientList:
+        return MaterialPageRoute(builder: (_) => const PatientListScreen());
       default:
         return _errorRoute('Noma\'lum route: ${settings.name}');
     }

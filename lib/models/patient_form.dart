@@ -1,7 +1,12 @@
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:stomotologiya_app/models/patient.dart';
+import 'package:stomotologiya_app/service/supabase_storage_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class PatientForm extends StatefulWidget {
   const PatientForm({super.key});
@@ -23,6 +28,10 @@ class _PatientFormState extends State<PatientForm> {
 
   DateTime? birthDate;
   DateTime? firstVisitDate;
+  
+  final List<File> _images = [];
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +93,57 @@ class _PatientFormState extends State<PatientForm> {
                 decoration: InputDecoration(labelText: 'Shikoyati'),
               ),
               SizedBox(height: 10),
+              // Rasm yuklash qismi
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Bemor rasmlari:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  _images.isEmpty
+                      ? Text('Rasmlar qo\'shilmagan')
+                      : SizedBox(
+                          height: 100,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _images.length,
+                            itemBuilder: (context, index) {
+                              return Stack(
+                                children: [
+                                  Container(
+                                    width: 100,
+                                    height: 100,
+                                    margin: EdgeInsets.only(right: 8),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Image.file(
+                                      _images[index],
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: IconButton(
+                                      icon: Icon(Icons.close, color: Colors.red),
+                                      onPressed: () => _removeImage(index),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                  SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: _pickImages,
+                    icon: Icon(Icons.add_photo_alternate),
+                    label: Text('Rasm qo\'shish'),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
               Row(
                 children: [
                   Checkbox(
@@ -121,8 +181,17 @@ class _PatientFormState extends State<PatientForm> {
               ),
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _savePatient,
-                child: Text('Saqlash'),
+                onPressed: _isUploading ? null : _savePatient,
+                child: _isUploading 
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text('Saqlash'),
               ),
             ],
           ),
@@ -166,51 +235,166 @@ class _PatientFormState extends State<PatientForm> {
 
   // Bemorni saqlash funksiyasi
   Future<void> _savePatient() async {
-    if (fullNameController.text.isEmpty ||
-        birthDate == null ||
-        firstVisitDate == null ||
-        phoneNumberController.text.isEmpty ||
-        complaintController.text.isEmpty ||
-        addressController.text.isEmpty) {
+    // Validate required fields
+    if (fullNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Iltimos, barcha maydonlarni to‘ldiring!')),
+        SnackBar(content: Text('Iltimos, bemor ismini kiriting')),
       );
       return;
     }
 
-    final patient = Patient(
-      fullName: fullNameController.text,
-      birthDate: birthDate!,
-      phoneNumber: phoneNumberController.text,
-      firstVisitDate: firstVisitDate!,
-      complaint: complaintController.text,
-      speaksRussian: speaksRussian ? 'yes' : 'no',
-      speaksEnglish: speaksEnglish ? 'yes' : 'no',
-      speaksUzbek: speaksUzbek ? 'yes' : 'no',
-      address: addressController.text,
-      imagePath: '', // Agar rasm tanlansa, shu yerga path qo'yasiz
-    );
+    if (phoneNumberController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Iltimos, telefon raqamini kiriting')),
+      );
+      return;
+    }
 
-    var box = await Hive.openBox<Patient>('patients');
-    await box.add(patient);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Bemor ma\'lumotlari saqlandi!')),
-    );
-
-    // Formani tozalash
-    fullNameController.clear();
-    birthDateController.clear();
-    phoneNumberController.clear();
-    firstVisitDateController.clear();
-    complaintController.clear();
-    addressController.clear();
     setState(() {
-      birthDate = null;
-      firstVisitDate = null;
-      speaksRussian = false;
-      speaksEnglish = false;
-      speaksUzbek = false;
+      _isUploading = true;
     });
+
+    try {
+      setState(() {
+        _isUploading = true;
+      });
+
+      // Create patient object with all required fields
+      final newPatient = Patient(
+        fullName: fullNameController.text.trim(),
+        birthDate: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+        phoneNumber: phoneNumberController.text.trim(),
+        firstVisitDate: firstVisitDate ?? DateTime.now(),
+        complaint: complaintController.text.trim(),
+        address: addressController.text.trim(),
+        speaksRussian: speaksRussian ? 'Ha' : 'Yo\'q',
+        speaksEnglish: speaksEnglish ? 'Ha' : 'Yo\'q',
+        speaksUzbek: speaksUzbek ? 'Ha' : 'Yo\'q',
+        imagePaths: [],
+      );
+
+      // Save to Firestore first to get document ID
+      DocumentReference docRef;
+      try {
+        docRef = await newPatient.addToFirestore();
+        newPatient.reference = docRef;
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Firestore-ga saqlashda xatolik: $e')),
+          );
+        }
+        return;
+      }
+
+      // Upload images to Supabase Storage if any
+      if (_images.isNotEmpty) {
+        final storageService = SupabaseStorageService();
+        final List<String> savedImageUrls = [];
+        
+        for (int i = 0; i < _images.length; i++) {
+          try {
+            final imageUrl = await storageService.uploadPatientImage(docRef.id, _images[i]);
+            if (imageUrl != null) {
+              savedImageUrls.add(imageUrl);
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Rasm yuklashda xatolik (${i + 1}/${_images.length})')),
+                );
+              }
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
+              );
+            }
+          }
+        }
+        
+        if (savedImageUrls.isNotEmpty) {
+          try {
+            // Update patient with image URLs
+            newPatient.imagePaths = savedImageUrls;
+            await docRef.update({
+              'imagePaths': savedImageUrls,
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Rasmlarni yangilashda xatolik: $e')),
+              );
+            }
+          }
+        }
+      }
+
+      // Save to local storage
+      try {
+        final patientsBox = Hive.box<Patient>('patients');
+        await patientsBox.add(newPatient);
+        
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lokal xotiraga saqlashda xatolik: $e')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Xatolik yuz berdi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile>? pickedFiles = await _picker.pickMultiImage(
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFiles != null) {
+        setState(() {
+          _images.addAll(pickedFiles.map((file) => File(file.path)));
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
+      );
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _images.removeAt(index);
+    });
+  }
+
+  @override
+  void dispose() {
+    fullNameController.dispose();
+    birthDateController.dispose();
+    phoneNumberController.dispose();
+    firstVisitDateController.dispose();
+    complaintController.dispose();
+    addressController.dispose();
+    super.dispose();
   }
 }

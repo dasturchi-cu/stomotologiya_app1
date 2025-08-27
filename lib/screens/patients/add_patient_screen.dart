@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/patient.dart';
+import '../../service/supabase_storage_service.dart';
 
 class AddPatientScreen extends StatefulWidget {
   const AddPatientScreen({super.key});
@@ -166,7 +166,6 @@ class AddPatientScreenState extends State<AddPatientScreen> {
 
   Future<void> _savePatient() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
-      // Scroll to the first error
       _scrollToTop();
       return;
     }
@@ -179,60 +178,63 @@ class AddPatientScreenState extends State<AddPatientScreen> {
 
     try {
       final patientsBox = Hive.box<Patient>('patients');
-
+      
       // Create patient object
       final newPatient = Patient(
-        fullName: fullname,
-        birthDate: birthDate ??
-            DateTime.now().subtract(const Duration(days: 365 * 30)),
-        phoneNumber: phoneNumber,
+        fullName: fullname.trim(),
+        birthDate: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+        phoneNumber: phoneNumber.trim(),
         firstVisitDate: firstVisitDate ?? DateTime.now(),
-        complaint: complaint,
-        address: address,
-        imagePaths: [], // Initialize with empty list
-        speaksRussian: '', // Empty strings for language fields
-        speaksEnglish: '',
-        speaksUzbek: '',
+        complaint: complaint.trim(),
+        address: address.trim(),
+        speaksRussian: 'Yo\'q',
+        speaksEnglish: 'Yo\'q',
+        speaksUzbek: 'Ha',
+        imagePath: '',
+        imagePaths: [],
       );
 
+      // Save to Firestore
+      final docRef = await newPatient.addToFirestore();
+      newPatient.reference = docRef;
+      
       // Save images if selected
       if (_images.isNotEmpty) {
-        final directory = await getApplicationDocumentsDirectory();
-        final imageDirectory = Directory('${directory.path}/patient_images');
-
-        if (!await imageDirectory.exists()) {
-          await imageDirectory.create(recursive: true);
+        final storageService = SupabaseStorageService();
+        final List<String> savedImageUrls = [];
+        
+        for (final image in _images) {
+          final imageUrl = await storageService.uploadPatientImage(docRef.id, image);
+          if (imageUrl != null) {
+            savedImageUrls.add(imageUrl);
+          }
         }
-
-        final List<String> savedImagePaths = [];
-
-        // Save each image
-        for (int i = 0; i < _images.length; i++) {
-          final imagePath =
-              '${imageDirectory.path}/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-          await _images[i].copy(imagePath);
-          savedImagePaths.add(imagePath);
+        
+        if (savedImageUrls.isNotEmpty) {
+          newPatient.imagePaths = savedImageUrls;
+          await docRef.update({'imagePaths': savedImageUrls});
         }
-
-        // Set the image paths
-        newPatient.imagePaths = savedImagePaths;
       }
 
-      // Save to database
+      // Save to local Hive database
       await patientsBox.add(newPatient);
 
-      // Show success and navigate back
-      // ...existing code...
       if (mounted) {
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$fullname muvaffaqiyatli qo\'shildi'),
             backgroundColor: Colors.green[700],
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
-        Navigator.of(context)
-            .pushNamedAndRemoveUntil('/home', (route) => false);
+        
+        // Navigate back to home and refresh the list
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home', 
+          (route) => false,
+        );
       }
 // ...existing code...
     } catch (e) {

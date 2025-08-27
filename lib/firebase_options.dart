@@ -46,7 +46,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '486017725620',
     projectId: 'stomo-track-6050e',
     authDomain: 'stomo-track-6050e.firebaseapp.com',
-    storageBucket: 'stomo-track-6050e.firebasestorage.app',
+    storageBucket: 'stomo-track-6050e.appspot.com',
+    measurementId: 'G-XXXXXXXXXX' // Add your measurement ID if you have one
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -54,6 +55,7 @@ class DefaultFirebaseOptions {
     appId: '1:486017725620:android:58e9f6546fe1135c2193e1',
     messagingSenderId: '486017725620',
     projectId: 'stomo-track-6050e',
+    storageBucket: 'stomo-track-6050e.appspot.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

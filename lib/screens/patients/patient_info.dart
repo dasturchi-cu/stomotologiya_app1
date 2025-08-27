@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../routes.dart';
@@ -240,11 +239,21 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.file(
-                      File(widget.patient.imagePaths[index]),
+                    child: Image.network(
+                      widget.patient.imagePaths[index],
                       fit: BoxFit.cover,
-                      cacheWidth: 400, // Optimize memory usage
-                      cacheHeight: 300,
+                      width: double.infinity,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: Colors.grey[300],
@@ -267,8 +276,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
     Navigator.of(context).pushNamed(
       AppRoutes.imageViewer,
       arguments: {
-        'paths': widget.patient.imagePaths,
-        'index': initialIndex,
+        'imagePaths': widget.patient.imagePaths,
+        'initialIndex': initialIndex,
       },
     );
   }
@@ -377,9 +386,30 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
             minScale: 0.5,
             maxScale: 4.0,
             child: Center(
-              child: Image.file(
-                File(widget.imagePaths[index]),
+              child: Image.network(
+                widget.imagePaths[index],
                 fit: BoxFit.contain,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: Colors.grey[800],
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.grey,
+                      size: 50,
+                    ),
+                  ),
+                ),
               ),
             ),
           );

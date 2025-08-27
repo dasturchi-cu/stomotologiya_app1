@@ -2,18 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/adapters.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'firebase_options.dart';
 import 'routes.dart';
 import 'models/patient.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
 
-  // Firebase ni ishga tushirish
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+    if (kDebugMode) {
+      print('Firebase initialized successfully');
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      print('Error initializing Firebase: $e');
+    }
+  }
+
+  try {
+    // Initialize Supabase
+    await Supabase.initialize(
+      url: 'https://ptosfyxqkvtmbmwdxzna.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0b3NmeXhxa3Z0bWJtd2R4em5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMDI1ODgsImV4cCI6MjA3MTg3ODU4OH0.QG6lOXG_NhQdjDmALd7JJQk9WoPuFMZ_Hzr8RAizIvI',
+    );
+    
+    if (kDebugMode) {
+      print('Supabase initialized successfully');
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      print('Error initializing Supabase: $e');
+    }
+  }
 
   // Hive ni ishga tushirish
   await Hive.initFlutter();
