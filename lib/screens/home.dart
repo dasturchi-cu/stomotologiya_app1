@@ -6,6 +6,7 @@ import 'package:lottie/lottie.dart';
 import 'package:stomotologiya_app/routes.dart';
 import '../models/patient.dart';
 import '../service/auth_service.dart';
+import '../service/firebase_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,16 +19,24 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   var box = Hive.box<Patient>('patients');
-  bool _isLoading = false;
   final _authService = AuthService();
-
+  final _firebaseService = FirebaseService();
+  
+  // For storing patients from Firestore
+  List<Patient> _patients = [];
+  
   // Debounce timer for search
   Timer? _searchDebounceTimer;
+  
+  // Loading state
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _loadPatients();
   }
 
   @override
@@ -36,6 +45,49 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
     super.dispose();
+  }
+  
+  // Load patients from Firestore
+  Future<void> _loadPatients() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      _firebaseService.getPatients().listen((patients) {
+        if (mounted) {
+          setState(() {
+            _patients = patients;
+            _isLoading = false;
+          });
+          // Update local cache
+          _updateLocalCache(patients);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Xatolik yuz berdi: $e';
+          _isLoading = false;
+        });
+      }
+      debugPrint('Error loading patients: $e');
+    }
+  }
+  
+  // Update local Hive database with fresh data from Firestore
+  Future<void> _updateLocalCache(List<Patient> patients) async {
+    try {
+      await box.clear();
+      for (var patient in patients) {
+        await box.put(patient.key, patient);
+      }
+    } catch (e) {
+      debugPrint('Error updating local cache: $e');
+    }
   }
 
   void _onSearchChanged() {
@@ -46,10 +98,23 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) {
         setState(() {
-          _searchQuery = _searchController.text;
+          _searchQuery = _searchController.text.trim();
         });
       }
     });
+  }
+  
+  // Filter patients based on search query
+  List<Patient> get _filteredPatients {
+    if (_searchQuery.isEmpty) return _patients;
+    
+    final query = _searchQuery.toLowerCase();
+    return _patients.where((patient) {
+      return patient.fullName.toLowerCase().contains(query) ||
+          patient.phoneNumber.contains(query) ||
+          patient.complaint.toLowerCase().contains(query) ||
+          (patient.address?.toLowerCase().contains(query) ?? false);
+    }).toList();
   }
 
   Future<void> _refreshData() async {
@@ -172,65 +237,43 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // Patient list with ValueListenableBuilder
+          // Patient list with loading and error states
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refreshData,
-              child: ValueListenableBuilder(
-                valueListenable: box.listenable(),
-                builder: (context, box, widget) {
-                  if (_isLoading) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
-
-                  final filteredPatients = _getFilteredPatients();
-
-                  if (box.isEmpty) {
-                    return _buildEmptyState();
-                  } else if (filteredPatients.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.search_off,
-                              size: 64, color: Colors.grey[400]),
-                          SizedBox(height: 16),
-                          Text(
-                            'Qidiruv natijasi topilmadi',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey[600],
-                            ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, 
+                                  color: Colors.red, size: 48),
+                              const SizedBox(height: 16),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadPatients,
+                                child: const Text('Qayta urinish'),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    return ListView.builder(
-                      itemCount: filteredPatients.length,
-                      padding: EdgeInsets.all(16),
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
-                      // Optimized cache settings for better performance
-                      cacheExtent:
-                          2000, // Increased cache for smoother scrolling
-                      addAutomaticKeepAlives: false, // Reduce memory usage
-                      addRepaintBoundaries:
-                          true, // Improve rendering performance
-                      addSemanticIndexes:
-                          false, // Disable if not needed for accessibility
-                      itemBuilder: (context, index) {
-                        final patient = filteredPatients[index];
-                        return _buildOptimizedPatientCard(
-                            context, patient, index);
-                      },
-                    );
-                  }
-                },
-              ),
+                        )
+                      : _patients.isEmpty
+                          ? _buildEmptyState()
+                          : ListView.builder(
+                              itemCount: _filteredPatients.length,
+                              itemBuilder: (context, index) {
+                                final patient = _filteredPatients[index];
+                                return _buildOptimizedPatientCard(
+                                    context, patient, index);
+                              },
+                            ),
             ),
           ),
         ],

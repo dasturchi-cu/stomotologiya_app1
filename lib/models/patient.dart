@@ -1,9 +1,14 @@
 import 'package:hive/hive.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 part 'patient.g.dart';
 
 @HiveType(typeId: 0)
 class Patient extends HiveObject {
+  static const String collectionName = 'patients';
+  
+  // Firestore reference
+  DocumentReference? reference;
   @HiveField(0)
   final String fullName;
 
@@ -92,6 +97,7 @@ class Patient extends HiveObject {
     String? imagePath,
     List<String>? imagePaths,
     List<DateTime>? visitDates,
+    DocumentReference? reference,
   }) {
     return Patient(
       fullName: fullName ?? this.fullName,
@@ -106,6 +112,81 @@ class Patient extends HiveObject {
       imagePath: imagePath ?? this.imagePath,
       imagePaths: imagePaths ?? this.imagePaths,
       visitDates: visitDates ?? this.visitDates,
-    );
+    )..reference = reference ?? this.reference;
+  }
+
+  // Firestore'dan Patient yaratish
+  factory Patient.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    
+    return Patient(
+      fullName: data['fullName'] ?? '',
+      birthDate: (data['birthDate'] as Timestamp).toDate(),
+      phoneNumber: data['phoneNumber'] ?? '',
+      firstVisitDate: (data['firstVisitDate'] as Timestamp).toDate(),
+      complaint: data['complaint'] ?? '',
+      speaksRussian: data['speaksRussian'] ?? 'Yo\'q',
+      speaksEnglish: data['speaksEnglish'] ?? 'Yo\'q',
+      speaksUzbek: data['speaksUzbek'] ?? 'Ha',
+      address: data['address'] ?? '',
+      imagePath: data['imagePath'] ?? '',
+      imagePaths: List<String>.from(data['imagePaths'] ?? []),
+      visitDates: (data['visitDates'] as List<dynamic>?)
+          ?.map((e) => (e as Timestamp).toDate())
+          .toList() ?? [],
+    )..reference = doc.reference;
+  }
+
+  // Generate search terms for better search functionality
+  List<String> _generateSearchTerms() {
+    final terms = <String>[];
+    terms.addAll(fullName.toLowerCase().split(' '));
+    terms.add(phoneNumber.replaceAll(RegExp(r'[^0-9]'), ''));
+    terms.addAll(complaint.toLowerCase().split(' '));
+    terms.addAll(address.toLowerCase().split(' '));
+    return terms.where((term) => term.length > 2).toSet().toList();
+  }
+
+  // Convert to Firestore document
+  Map<String, dynamic> toFirestore() {
+    return {
+      'fullName': fullName,
+      'birthDate': Timestamp.fromDate(birthDate),
+      'phoneNumber': phoneNumber,
+      'firstVisitDate': Timestamp.fromDate(firstVisitDate),
+      'complaint': complaint,
+      'speaksRussian': speaksRussian,
+      'speaksEnglish': speaksEnglish,
+      'speaksUzbek': speaksUzbek,
+      'address': address,
+      'imagePath': imagePath,
+      'imagePaths': imagePaths,
+      'visitDates': visitDates.map((date) => Timestamp.fromDate(date)).toList(),
+      'searchTerms': _generateSearchTerms(),
+      'lastUpdated': FieldValue.serverTimestamp(),
+    };
+  }
+
+  // Firestore'ga yangilash
+  Future<void> updateFirestore() async {
+    if (reference != null) {
+      await reference!.update(toFirestore());
+    }
+  }
+
+  // Firestore'ga yangi bemor qo'shish
+  Future<DocumentReference> addToFirestore() async {
+    final docRef = await FirebaseFirestore.instance
+        .collection(collectionName)
+        .add(toFirestore());
+    reference = docRef;
+    return docRef;
+  }
+
+  // Firestore'dan o'chirish
+  Future<void> deleteFromFirestore() async {
+    if (reference != null) {
+      await reference!.delete();
+    }
   }
 }
