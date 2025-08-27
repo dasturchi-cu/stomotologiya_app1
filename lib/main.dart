@@ -17,7 +17,7 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    
+    //uzbeksan
     if (kDebugMode) {
       print('Firebase initialized successfully');
     }

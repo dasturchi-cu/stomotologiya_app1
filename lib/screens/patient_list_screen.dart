@@ -3,7 +3,6 @@ import 'dart:async'; // ✅ Timer uchun to‘g‘ri import
 import 'package:flutter/material.dart';
 import 'package:stomotologiya_app/models/patient.dart';
 import 'package:stomotologiya_app/service/firebase_service.dart';
-import '../routes.dart';
 
 class PatientListScreen extends StatefulWidget {
   const PatientListScreen({super.key});
@@ -104,7 +103,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.pushNamed(context, AppRoutes.addPatient);
+          // TODO: Navigate to add patient screen
         },
         child: const Icon(Icons.add),
       ),
@@ -121,11 +120,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
         title: Text(patient.fullName),
         subtitle: Text(patient.phoneNumber),
         onTap: () {
-          Navigator.pushNamed(
-            context,
-            AppRoutes.patientDetails,
-            arguments: patient,
-          );
+          // TODO: Navigate to patient details
         },
       ),
     );

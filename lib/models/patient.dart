@@ -6,20 +6,9 @@ part 'patient.g.dart';
 @HiveType(typeId: 0)
 class Patient extends HiveObject {
   static const String collectionName = 'patients';
-
-  // Firestore integration fields
-  @HiveField(12, defaultValue: null)
-  String? id;
-
-  @HiveField(13, defaultValue: null)
+  
+  // Firestore reference
   DocumentReference? reference;
-
-  @HiveField(14, defaultValue: null)
-  DateTime? lastUpdated;
-
-  @HiveField(15, defaultValue: false)
-  bool syncedWithFirestore;
-
   @HiveField(0)
   final String fullName;
 
@@ -56,56 +45,7 @@ class Patient extends HiveObject {
   @HiveField(11)
   List<DateTime> visitDates; // Bemor tashriflari tarixi
 
-  // For Firestore document ID
-  String? get documentId => id ?? reference?.id;
-
-  // Create Patient from Firestore document
-  factory Patient.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-
-    return Patient(
-      id: doc.id,
-      fullName: data['fullName'] ?? '',
-      birthDate: (data['birthDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      phoneNumber: data['phoneNumber'] ?? '',
-      firstVisitDate: (data['firstVisitDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      complaint: data['complaint'] ?? '',
-      address: data['address'] ?? '',
-      speaksRussian: data['speaksRussian'] ?? 'Yo\'q',
-      speaksEnglish: data['speaksEnglish'] ?? 'Yo\'q',
-      speaksUzbek: data['speaksUzbek'] ?? 'Ha',
-      imagePath: data['imagePath'] ?? '',
-      imagePaths: List<String>.from(data['imagePaths'] ?? []),
-      visitDates: (data['visitDates'] as List<dynamic>?)
-          ?.map((e) => (e as Timestamp).toDate())
-          .toList() ?? [DateTime.now()],
-      lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate(),
-      syncedWithFirestore: data['syncedWithFirestore'] ?? true,
-    )..reference = doc.reference;
-  }
-
-  // Convert to Firestore document
-  Map<String, dynamic> toFirestore() {
-    return {
-      'fullName': fullName,
-      'birthDate': Timestamp.fromDate(birthDate),
-      'phoneNumber': phoneNumber,
-      'firstVisitDate': Timestamp.fromDate(firstVisitDate),
-      'complaint': complaint,
-      'speaksRussian': speaksRussian,
-      'speaksEnglish': speaksEnglish,
-      'speaksUzbek': speaksUzbek,
-      'address': address,
-      'imagePath': imagePath,
-      'imagePaths': imagePaths,
-      'visitDates': visitDates.map((date) => Timestamp.fromDate(date)).toList(),
-      'lastUpdated': FieldValue.serverTimestamp(),
-      'syncedWithFirestore': syncedWithFirestore,
-    };
-  }
-
   Patient({
-    this.id,
     required this.fullName,
     required this.birthDate,
     required this.phoneNumber,
@@ -118,8 +58,6 @@ class Patient extends HiveObject {
     this.imagePath = '',
     this.imagePaths = const [],
     List<DateTime>? visitDates,
-    this.lastUpdated,
-    this.syncedWithFirestore = false,
   }) : visitDates = visitDates ?? [firstVisitDate];
 
   /// Barcha rasmlar ro‘yxatini qaytaradi
@@ -147,7 +85,6 @@ class Patient extends HiveObject {
 
   /// Bemor obyektidan nusxa olish (copyWith)
   Patient copyWith({
-    String? id,
     String? fullName,
     DateTime? birthDate,
     String? phoneNumber,
@@ -160,12 +97,9 @@ class Patient extends HiveObject {
     String? imagePath,
     List<String>? imagePaths,
     List<DateTime>? visitDates,
-    DateTime? lastUpdated,
-    bool? syncedWithFirestore,
     DocumentReference? reference,
   }) {
     return Patient(
-      id: id ?? this.id,
       fullName: fullName ?? this.fullName,
       birthDate: birthDate ?? this.birthDate,
       phoneNumber: phoneNumber ?? this.phoneNumber,
@@ -176,13 +110,32 @@ class Patient extends HiveObject {
       speaksUzbek: speaksUzbek ?? this.speaksUzbek,
       address: address ?? this.address,
       imagePath: imagePath ?? this.imagePath,
-      imagePaths: imagePaths ?? List.from(this.imagePaths),
-      visitDates: visitDates ?? List.from(this.visitDates),
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-      syncedWithFirestore: syncedWithFirestore ?? this.syncedWithFirestore,
+      imagePaths: imagePaths ?? this.imagePaths,
+      visitDates: visitDates ?? this.visitDates,
     )..reference = reference ?? this.reference;
   }
 
+  // Firestore'dan Patient yaratish
+  factory Patient.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    
+    return Patient(
+      fullName: data['fullName'] ?? '',
+      birthDate: (data['birthDate'] as Timestamp).toDate(),
+      phoneNumber: data['phoneNumber'] ?? '',
+      firstVisitDate: (data['firstVisitDate'] as Timestamp).toDate(),
+      complaint: data['complaint'] ?? '',
+      speaksRussian: data['speaksRussian'] ?? 'Yo\'q',
+      speaksEnglish: data['speaksEnglish'] ?? 'Yo\'q',
+      speaksUzbek: data['speaksUzbek'] ?? 'Ha',
+      address: data['address'] ?? '',
+      imagePath: data['imagePath'] ?? '',
+      imagePaths: List<String>.from(data['imagePaths'] ?? []),
+      visitDates: (data['visitDates'] as List<dynamic>?)
+          ?.map((e) => (e as Timestamp).toDate())
+          .toList() ?? [],
+    )..reference = doc.reference;
+  }
 
   // Generate search terms for better search functionality
   List<String> _generateSearchTerms() {
@@ -194,6 +147,25 @@ class Patient extends HiveObject {
     return terms.where((term) => term.length > 2).toSet().toList();
   }
 
+  // Convert to Firestore document
+  Map<String, dynamic> toFirestore() {
+    return {
+      'fullName': fullName,
+      'birthDate': Timestamp.fromDate(birthDate),
+      'phoneNumber': phoneNumber,
+      'firstVisitDate': Timestamp.fromDate(firstVisitDate),
+      'complaint': complaint,
+      'speaksRussian': speaksRussian,
+      'speaksEnglish': speaksEnglish,
+      'speaksUzbek': speaksUzbek,
+      'address': address,
+      'imagePath': imagePath,
+      'imagePaths': imagePaths,
+      'visitDates': visitDates.map((date) => Timestamp.fromDate(date)).toList(),
+      'searchTerms': _generateSearchTerms(),
+      'lastUpdated': FieldValue.serverTimestamp(),
+    };
+  }
 
   // Firestore'ga yangilash
   Future<void> updateFirestore() async {

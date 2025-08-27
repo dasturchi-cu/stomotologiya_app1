@@ -1,12 +1,12 @@
-import 'dart:io';
+import 'dart:io'; // kerak bo'ladi
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:stomotologiya_app/models/patient.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   factory FirebaseService() {
     return _instance;
@@ -24,11 +24,10 @@ class FirebaseService {
             snapshot.docs.map((doc) => Patient.fromFirestore(doc)).toList());
   }
 
-  Future<DocumentReference> addPatient(Patient patient) async {
-    final docRef = await _firestore
+  Future<void> addPatient(Patient patient) async {
+    await _firestore
         .collection(Patient.collectionName)
         .add(patient.toFirestore());
-    return docRef;
   }
 
   Future<void> updatePatient(Patient patient) async {
@@ -41,29 +40,21 @@ class FirebaseService {
     await _firestore.collection(Patient.collectionName).doc(id).delete();
   }
 
-  // Rasmni yuklash va URL manzilini qaytarish (Supabase Storage orqali)
-  Future<String> uploadPatientImage(String patientId, File imageFile) async {
+  // ✅ File Upload fix
+  Future<String> uploadFile(String path, String fileName) async {
     try {
-      final fileName = 'patient_${patientId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final filePath = 'patient_images/$patientId/$fileName';
-      
-      // Faylni Supabase Storage ga yuklash
-      await _supabase.storage
-          .from('patient_images')
-          .upload(filePath, imageFile);
-      
-      // Ommaviy URL manzilini olish
-      final String publicUrl = _supabase.storage
-          .from('patient_images')
-          .getPublicUrl(filePath);
-          
-      return publicUrl;
+      final ref = _storage.ref().child('patient_images/$fileName');
+
+      final file = File(path); // String path dan File obyekt
+      await ref.putFile(file);
+
+      return await ref.getDownloadURL();
     } catch (e) {
-      throw Exception('Rasm yuklashda xatolik yuz berdi: $e');
+      throw Exception('Failed to upload file: $e');
     }
   }
 
-  // Search patients
+  // Search
   Stream<List<Patient>> searchPatients(String query) {
     return _firestore
         .collection(Patient.collectionName)

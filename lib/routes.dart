@@ -12,7 +12,6 @@ import 'screens/patients/patient_info.dart';
 import 'screens/patients/patient_screen.dart';
 import 'screens/patients/patient_edit_screen.dart';
 import 'screens/patient_list_screen.dart';
-import 'screens/image_viewer_screen.dart';
 
 import 'models/patient.dart';
 
@@ -77,22 +76,8 @@ class AppRoutes {
       case imageViewer:
         final arg4 = settings.arguments;
         if (arg4 is Map) {
-          final imagePaths = (arg4['imagePaths'] as List?)
-                  ?.map((e) => e.toString())
-                  .toList() ??
-              [];
-          final initialIndex = (arg4['initialIndex'] as int?) ?? 0;
-
-          if (imagePaths.isEmpty) {
-            return _errorRoute('Image Viewer: imagePaths bo\'sh bo\'lmasligi kerak');
-          }
-
-          return MaterialPageRoute(
-            builder: (_) => ImageViewerScreen(
-              imagePaths: imagePaths,
-              initialIndex: initialIndex,
-            ),
-          );
+          // TODO: Handle image viewer with arguments
+          return _errorRoute('Image Viewer not implemented');
         }
         return _errorRoute('Image Viewer: Invalid arguments');
       case patientList:
