@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:stomotologiya_app/models/patient.dart';
+import 'package:stomotologiya_app/screens/auth/login_screen_new.dart';
+import 'package:stomotologiya_app/screens/auth/register_screen.dart';
 
 import 'screens/app_wrapper.dart';
 import 'screens/home.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/export.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/auth/register_screen.dart';
 import 'payment/payment.dart';
 import 'screens/patients/add_patient_screen.dart';
 import 'screens/patients/patient_info.dart';
 import 'screens/patients/patient_screen.dart';
 import 'screens/patients/patient_edit_screen.dart';
 import 'screens/patient_list_screen.dart';
-
-import 'models/patient.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -44,7 +43,7 @@ class AppRoutes {
       case export:
         return MaterialPageRoute(builder: (_) => const ExportScreen());
       case login:
-        return MaterialPageRoute(builder: (_) => const LoginScreen());
+        return MaterialPageRoute(builder: (_) => const LoginScreenNew());
       case register:
         return MaterialPageRoute(builder: (_) => const RegisterScreen());
       case payment:
@@ -83,7 +82,8 @@ class AppRoutes {
       case patientList:
         return MaterialPageRoute(builder: (_) => const PatientListScreen());
       default:
-        return _errorRoute('Noma\'lum route: ${settings.name}');
+        // If no route is found, redirect to the wrapper which will handle auth state
+        return MaterialPageRoute(builder: (_) => const AppWrapper());
     }
   }
 

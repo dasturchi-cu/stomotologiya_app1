@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
     applicationId = "com.example.stomotologiya_app"
-    minSdk = 23
+    minSdk = flutter.minSdkVersion
     targetSdk = flutter.targetSdkVersion
     versionCode = flutter.versionCode.toInt()
     versionName = flutter.versionName

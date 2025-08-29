@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../models/patient.dart';
 import '../../service/error_handler.dart';
 
 class PatientImagesEditScreen extends StatefulWidget {
@@ -12,7 +12,8 @@ class PatientImagesEditScreen extends StatefulWidget {
   const PatientImagesEditScreen({super.key, required this.patient});
 
   @override
-  State<PatientImagesEditScreen> createState() => _PatientImagesEditScreenState();
+  State<PatientImagesEditScreen> createState() =>
+      _PatientImagesEditScreenState();
 }
 
 class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
@@ -35,7 +36,8 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('O\'zgarishlarni saqlamay chiqish'),
-        content: const Text('Agar siz hozir chiqib ketsangiz, o\'zgarishlaringiz saqlanmaydi. Davom etishni xohlaysizmi?'),
+        content: const Text(
+            'Agar siz hozir chiqib ketsangiz, o\'zgarishlaringiz saqlanmaydi. Davom etishni xohlaysizmi?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -84,7 +86,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
   Future<void> _pickImage(ImageSource source) async {
     try {
       if (!mounted) return;
-      
+
       Navigator.of(context).pop();
       setState(() => _isLoading = true);
 
@@ -166,7 +168,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
       ),
     );
   }
-  
+
   Future<void> _confirmDeleteAllImages() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -199,19 +201,16 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
     if (!_hasChanges || _isLoading) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
       // Upload new images to Supabase Storage
       final uploadedImageUrls = await _uploadNewImages();
-      
+
       // Update patient record in Supabase
-      await Supabase.instance.client
-          .from('patients')
-          .update({
-            'rasmlar_manzillari': uploadedImageUrls,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', widget.patient.id ?? '');
+      await Supabase.instance.client.from('patients').update({
+        'rasmlar_manzillari': uploadedImageUrls,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', widget.patient.id ?? '');
 
       if (mounted) {
         _errorHandler.showSuccess('Rasmlar muvaffaqiyatli yangilandi');
@@ -227,32 +226,33 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
       }
     }
   }
-  
+
   Future<List<String>> _uploadNewImages() async {
     final newImageFiles = _imagePaths.where((path) => !path.startsWith('http'));
     final List<String> uploadedUrls = [];
-    
+
     // Keep existing remote URLs
     uploadedUrls.addAll(_imagePaths.where((path) => path.startsWith('http')));
-    
+
     // Upload new local images
     for (final imagePath in newImageFiles) {
       final file = File(imagePath);
-      final fileName = '${widget.patient.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
+      final fileName =
+          '${widget.patient.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
       // Upload to Supabase storage
       final bytes = await file.readAsBytes();
       await Supabase.instance.client.storage
           .from('patient-images')
           .uploadBinary(fileName, bytes);
-      
+
       final url = Supabase.instance.client.storage
           .from('patient-images')
           .getPublicUrl(fileName);
-      
+
       uploadedUrls.add(url);
     }
-    
+
     return uploadedUrls;
   }
 
@@ -273,7 +273,8 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Text('Saqlash'),
@@ -305,7 +306,8 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _showImageSourceOptions,
+                          onPressed:
+                              _isLoading ? null : _showImageSourceOptions,
                           icon: const Icon(Icons.add_photo_alternate),
                           label: const Text('Rasm qo\'shish'),
                         ),
@@ -316,7 +318,8 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                     children: [
                       GridView.builder(
                         padding: const EdgeInsets.all(8),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8,
@@ -324,8 +327,9 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                         ),
                         itemCount: _imagePaths.length,
                         itemBuilder: (context, index) {
-                          final isLocalImage = !_imagePaths[index].startsWith('http');
-                          
+                          final isLocalImage =
+                              !_imagePaths[index].startsWith('http');
+
                           return Stack(
                             fit: StackFit.expand,
                             children: [
@@ -333,20 +337,26 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                                   ? Image.file(
                                       File(_imagePaths[index]),
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Center(child: Icon(Icons.broken_image)),
+                                      errorBuilder: (context, error,
+                                              stackTrace) =>
+                                          const Center(
+                                              child: Icon(Icons.broken_image)),
                                     )
                                   : Image.network(
                                       _imagePaths[index],
                                       fit: BoxFit.cover,
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
+                                      loadingBuilder:
+                                          (context, child, loadingProgress) {
+                                        if (loadingProgress == null)
+                                          return child;
                                         return const Center(
                                           child: CircularProgressIndicator(),
                                         );
                                       },
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Center(child: Icon(Icons.broken_image)),
+                                      errorBuilder: (context, error,
+                                              stackTrace) =>
+                                          const Center(
+                                              child: Icon(Icons.broken_image)),
                                     ),
                               Positioned(
                                 top: 4,

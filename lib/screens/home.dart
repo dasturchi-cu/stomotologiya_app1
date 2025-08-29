@@ -5,9 +5,8 @@ import 'package:hive_flutter/adapters.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:stomotologiya_app/models/app_user.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 import 'package:stomotologiya_app/routes.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/patient.dart';
 import '../service/patient_service.dart';
 import '../service/supabase_auth_servise.dart';
 
@@ -23,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   final _authService = AuthService();
   AppUser? get user => _authService.currentUser;
-  
+
   // State variables
   late final Box<Patient> box;
   List<Patient> _patients = [];
@@ -58,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // Initialize PatientService
       await _patientService.initialize();
-      
+
       // Listen to patients stream from Supabase
       _patientService.getPatients().listen((patients) {
         if (mounted) {
@@ -93,7 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await box.clear();
       for (var patient in patients) {
-        await box.put(patient.key, patient);
+        // Use a valid Hive key. Prefer Supabase id (String),
+        // otherwise fall back to auto-increment by using add().
+        if (patient.id != null && patient.id!.isNotEmpty) {
+          await box.put(patient.id!, patient);
+        } else {
+          await box.add(patient);
+        }
       }
     } catch (e) {
       debugPrint('Error updating local cache: $e');
@@ -121,9 +126,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final query = _searchQuery.toLowerCase();
     return _patients.where((patient) {
       return patient.ismi.toLowerCase().contains(query) ||
-          patient.telefonRaqami.contains(query) ||
-          (patient.shikoyat != null && patient.shikoyat!.toLowerCase().contains(query)) ||
-          (patient.manzil != null && patient.manzil!.toLowerCase().contains(query));
+          (patient.telefonRaqami?.contains(query) ?? false) ||
+          patient.shikoyat.toLowerCase().contains(query) ||
+          patient.manzil.toLowerCase().contains(query);
     }).toList();
   }
 
@@ -134,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Simulate a small delay for refresh animation
     await Future.delayed(const Duration(milliseconds: 300));
-    
+
     // Reload patients
     await _loadPatients();
   }
@@ -355,12 +360,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.phone_rounded, 
-                               size: 16, 
-                               color: Colors.blue[600]),
+                          Icon(Icons.phone_rounded,
+                              size: 16, color: Colors.blue[600]),
                           const SizedBox(width: 6),
                           Text(
-                            patient.telefonRaqami,
+                            patient.telefonRaqami ?? 'N/A',
                             style: TextStyle(
                               color: Colors.grey[700],
                               fontSize: 14,
@@ -394,9 +398,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Column(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.edit_rounded, 
-                                color: Colors.blue[600],
-                                size: 22),
+                      icon: Icon(Icons.edit_rounded,
+                          color: Colors.blue[600], size: 22),
                       onPressed: () {
                         Navigator.pushNamed(
                           context,
@@ -406,10 +409,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                     IconButton(
-                      icon: Icon(Icons.delete_rounded, 
-                                color: Colors.red[400],
-                                size: 22),
-                      onPressed: () => _showDeleteConfirmation(context, patient, index),
+                      icon: Icon(Icons.delete_rounded,
+                          color: Colors.red[400], size: 22),
+                      onPressed: () =>
+                          _showDeleteConfirmation(context, patient, index),
                     ),
                   ],
                 ),
@@ -444,8 +447,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(
-                            '${patient.ismi} muvaffaqiyatli o\'chirildi'),
+                        content:
+                            Text('${patient.ismi} muvaffaqiyatli o\'chirildi'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -461,7 +464,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 }
               },
-              child: const Text('O\'chirish', style: TextStyle(color: Colors.red)),
+              child:
+                  const Text('O\'chirish', style: TextStyle(color: Colors.red)),
             ),
           ],
         );
@@ -605,9 +609,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               itemCount: _filteredPatients.length,
                               itemBuilder: (context, index) {
                                 final patient = _filteredPatients[index];
-                                final hasVisitDates = patient.tashrifSanalari.isNotEmpty;
+                                final hasVisitDates =
+                                    patient.tashrifSanalari.isNotEmpty;
                                 final lastVisit = hasVisitDates
-                                    ? DateTime.parse(patient.tashrifSanalari.last)
+                                    ? DateTime.parse(
+                                        patient.tashrifSanalari.last)
                                     : patient.birinchiKelganSana;
                                 final hasRecentVisit = hasVisitDates &&
                                     lastVisit.isAfter(DateTime.now()
@@ -726,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icon(Icons.phone, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 4),
                     Text(
-                      patient.telefonRaqami,
+                      patient.telefonRaqami ?? 'N/A',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -757,5 +763,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 }

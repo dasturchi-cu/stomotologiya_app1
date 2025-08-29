@@ -1,24 +1,32 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 part 'patient.g.dart';
 
+/// Hive type id – change only if it collides with another type in your app.
 @HiveType(typeId: 0)
 class Patient extends HiveObject {
-  static const String tableName = 'User';
+  // -------------------------------------------------
+  // 1️⃣  Table name – must exist in Supabase
+  // -------------------------------------------------
+  static const String tableName = 'patients';
 
+  // -------------------------------------------------
+  // 2️⃣  Columns – names must match the columns in Supabase
+  // -------------------------------------------------
   @HiveField(0)
-  String? id;
+  String? id; // uuid primary key
 
   @HiveField(1)
   String ismi;
-
+//maana
   @HiveField(2)
   DateTime tugilganSana;
 
   @HiveField(3)
-  String telefonRaqami;
+  String? telefonRaqami;
 
   @HiveField(4)
   DateTime birinchiKelganSana;
@@ -44,11 +52,14 @@ class Patient extends HiveObject {
   @HiveField(11)
   DateTime? updatedAt;
 
+  // -------------------------------------------------
+  // 3️⃣  Constructor
+  // -------------------------------------------------
   Patient({
     this.id,
     required this.ismi,
     required this.tugilganSana,
-    required this.telefonRaqami,
+    this.telefonRaqami,
     required this.birinchiKelganSana,
     required this.shikoyat,
     required this.manzil,
@@ -60,30 +71,8 @@ class Patient extends HiveObject {
   })  : rasmlarManzillari = rasmlarManzillari ?? [],
         tashrifSanalari = tashrifSanalari ?? [];
 
-  /// Get all image paths including the legacy imagePath
-  List<String> getAllImagePaths() {
-    final allPaths = List<String>.from(rasmlarManzillari);
-    if (rasmManzili.isNotEmpty && !rasmlarManzillari.contains(rasmManzili)) {
-      allPaths.add(rasmManzili);
-    }
-    return allPaths;
-  }
-
-  /// Add a new visit date
-  void addVisitDate(DateTime visitDate) {
-    tashrifSanalari.add(visitDate.toString());
-    save();
-  }
-
-  /// Get the most recent visit date
-  DateTime get lastVisitDate {
-    if (tashrifSanalari.isEmpty) return birinchiKelganSana;
-    return DateTime.parse(tashrifSanalari.reduce((max, date) =>
-        DateTime.parse(date).isAfter(DateTime.parse(max)) ? date : max));
-  }
-
-  /// Create a copy of the patient with updated fields
   Patient copyWith({
+    String? id,
     String? ismi,
     DateTime? tugilganSana,
     String? telefonRaqami,
@@ -95,9 +84,9 @@ class Patient extends HiveObject {
     List<String>? tashrifSanalari,
     DateTime? createdAt,
     DateTime? updatedAt,
-    String? id,
   }) {
     return Patient(
+      id: id ?? this.id,
       ismi: ismi ?? this.ismi,
       tugilganSana: tugilganSana ?? this.tugilganSana,
       telefonRaqami: telefonRaqami ?? this.telefonRaqami,
@@ -105,133 +94,137 @@ class Patient extends HiveObject {
       shikoyat: shikoyat ?? this.shikoyat,
       manzil: manzil ?? this.manzil,
       rasmManzili: rasmManzili ?? this.rasmManzili,
-      rasmlarManzillari: rasmlarManzillari ?? List.from(this.rasmlarManzillari),
-      tashrifSanalari: tashrifSanalari ?? List.from(this.tashrifSanalari),
+      rasmlarManzillari: rasmlarManzillari ?? this.rasmlarManzillari,
+      tashrifSanalari: tashrifSanalari ?? this.tashrifSanalari,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  // Parse date from various formats
-  static DateTime _parseDate(dynamic date) {
-    if (date == null) return DateTime.now();
-    if (date is DateTime) return date;
-    if (date is String) return DateTime.tryParse(date) ?? DateTime.now();
-    return DateTime.now();
-  }
-
-  // Parse list of dates
-  static List<DateTime> _parseDateList(dynamic value) {
-    if (value == null) return [];
-    if (value is List) {
-      return value.map((e) => _parseDate(e)).toList();
+  // -------------------------------------------------
+  // 4️⃣  Helper methods
+  // -------------------------------------------------
+  /// Returns all image paths, merging the legacy `rasmManzili`
+  /// with the list stored in `rasmlarManzillari`.
+  List<String> getAllImagePaths() {
+    final all = List<String>.from(rasmlarManzillari);
+    if (rasmManzili.isNotEmpty && !all.contains(rasmManzili)) {
+      all.add(rasmManzili);
     }
-    return [];
+    return all;
   }
 
-  // Create Patient from a Map (for Hive/Supabase)
-  factory Patient.fromMap(Map<String, dynamic> map) {
-    return Patient(
-      id: map['id'] as String?,
-      ismi: map['ismi'] as String,
-      tugilganSana: DateTime.parse(map['tugilgan_sana'] as String),
-      telefonRaqami: map['telefon_raqami'] as String,
-      birinchiKelganSana: DateTime.parse(map['birinchi_kelgan'] as String),
-      shikoyat: map['shikoyat'] as String,
-      manzil: map['manzil'] as String,
-      rasmManzili: map['rasm_manzili'] as String? ?? '',
-      rasmlarManzillari: (map['rasmlar_manzillari'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      tashrifSanalari: (map['tashrif_sanalari'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      createdAt: null,
-      updatedAt: null,
-    );
+  /// Append a new visit date (stored as ISO‑8601 string) and persist
+  /// the change locally (Hive).
+  void addVisitDate(DateTime date) {
+    tashrifSanalari.add(date.toIso8601String());
+    if (isInBox) {
+      save(); // Hive persistence
+    } else if (Hive.isBoxOpen('patients')) {
+      Hive.box<Patient>('patients').add(this);
+    }
   }
 
-  // Convert to Map (for Hive/Supabase)
+  /// The most recent visit date, falling back to the first‑visit date.
+  DateTime get lastVisitDate {
+    if (tashrifSanalari.isEmpty) return birinchiKelganSana;
+    return tashrifSanalari
+        .map(DateTime.parse)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  // -------------------------------------------------
+  // 5️⃣  (De)serialization – keep DB column names exactly
+  // -------------------------------------------------
+  factory Patient.fromMap(Map<String, dynamic> map) => Patient(
+        id: map['id'] as String?,
+        ismi: map['ismi'] as String,
+        tugilganSana: DateTime.parse(map['tugilgan_sana'] as String),
+        telefonRaqami: map['telefon_raqami'] as String?,
+        birinchiKelganSana:
+            DateTime.parse(map['birinchi_kelgan_sana'] as String),
+        shikoyat: map['shikoyat'] as String,
+        manzil: map['manzil'] as String,
+        rasmManzili: map['rasm_manzili'] as String? ?? '',
+        rasmlarManzillari:
+            (map['rasmlar_manzillari'] as List<dynamic>?)?.cast<String>() ?? [],
+        tashrifSanalari:
+            (map['tashrif_sanalari'] as List<dynamic>?)?.cast<String>() ?? [],
+        createdAt: map['created_at'] != null
+            ? DateTime.parse(map['created_at'] as String)
+            : null,
+        updatedAt: map['updated_at'] != null
+            ? DateTime.parse(map['updated_at'] as String)
+            : null,
+      );
+
+  /// Supabase expects timestamps as `yyyy‑MM‑dd HH:mm:ss` (UTC).
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
+    final fmt = DateFormat('yyyy-MM-dd HH:mm:ss');
+    final map = <String, dynamic>{
       'ismi': ismi,
-      'tugilgan_sana': tugilganSana.toIso8601String(),
+      'tugilgan_sana': fmt.format(tugilganSana.toUtc()),
       'telefon_raqami': telefonRaqami,
-      'birinchi_kelgan': birinchiKelganSana.toIso8601String(),
+      'birinchi_kelgan_sana': fmt.format(birinchiKelganSana.toUtc()),
       'shikoyat': shikoyat,
       'manzil': manzil,
       'rasm_manzili': rasmManzili,
       'rasmlar_manzillari': rasmlarManzillari,
       'tashrif_sanalari': tashrifSanalari,
     };
+    if (id != null) map['id'] = id;
+    if (createdAt != null) map['created_at'] = fmt.format(createdAt!.toUtc());
+    if (updatedAt != null) map['updated_at'] = fmt.format(updatedAt!.toUtc());
+    return map;
   }
 
-  // Alias for toMap for backward compatibility
+  /// Alias required by many serialization libraries.
   Map<String, dynamic> toJson() => toMap();
 
-  // JSON dan Patient yaratish
-  factory Patient.fromJson(Map<String, dynamic> json) {
-    return Patient(
-      id: json['id'] as String?,
-      ismi: json['ismi'] as String,
-      tugilganSana: DateTime.parse(json['tugilgan_sana'] as String),
-      telefonRaqami: json['telefon_raqami'] as String,
-      birinchiKelganSana: DateTime.parse(json['birinchi_kelgan'] as String),
-      shikoyat: json['shikoyat'] as String,
-      manzil: json['manzil'] as String,
-      rasmManzili: json['rasm_manzili'] as String? ?? '',
-      rasmlarManzillari: (json['rasmlar_manzillari'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      tashrifSanalari: (json['tashrif_sanalari'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      createdAt: null,
-      updatedAt: null,
-    );
-  }
-
-  // Create Patient from Hive data
-  factory Patient.fromHive(Map<dynamic, dynamic> map) {
-    return Patient.fromMap(Map<String, dynamic>.from(map));
-  }
-
-  // Save to Supabase
+  // -------------------------------------------------
+  // 6️⃣  Save / update in Supabase
+  // -------------------------------------------------
   Future<void> saveToSupabase() async {
+    final supabase = Supabase.instance.client;
+    final payload = toMap();
+
     try {
-      final supabase = Supabase.instance.client;
-      final data = toMap();
-
-      debugPrint('Saqlash uchun ma\'lumotlar: $data');
-
-      if (key == null) {
-        // Create new record
-        debugPrint('Yangi bemor yaratish...');
+      if (id == null) {
+        // ---------- INSERT ----------
         final response =
-            await supabase.from('User').insert(data).select().single();
+            await supabase.from(tableName).insert(payload).select().single();
 
-        debugPrint('Supabase javob: $response');
+        // Supabase returns the generated `id`
+        id = response['id'] as String?;
+        debugPrint('✅ Patient created – id=$id');
 
-        // Update the patient object with the ID from Supabase
-        id = response['id'] as String;
-        debugPrint('Yangi ID: $id');
-
-        // Save to Hive with the new ID
-        await save();
-        debugPrint('Hive ga saqlandi');
+        // Keep the local Hive cache in sync
+        if (isInBox) {
+          await save();
+        } else if (Hive.isBoxOpen('patients')) {
+          await Hive.box<Patient>('patients').add(this);
+        }
       } else {
-        // Update existing record
-        debugPrint('Mavjud bemorni yangilash...');
-        await supabase.from('User').update(data).eq('id', key);
-        debugPrint('Supabase da yangilandi');
+        // ---------- UPDATE ----------
+        await supabase.from(tableName).update(payload).eq('id', id!);
+        debugPrint('✅ Patient updated – id=$id');
+
+        // Optional: keep Hive up‑to‑date
+        if (isInBox) {
+          await save();
+        } else if (Hive.isBoxOpen('patients')) {
+          await Hive.box<Patient>('patients').add(this);
+        }
       }
+    } on PostgrestException catch (e) {
+      // eski: e.statusCode ❌
+      debugPrint('❌ Supabase error (code=${e.code}): ${e.message}');
+      if (e.details != null) {
+        debugPrint('🔎 Details: ${e.details}');
+      }
+      rethrow;
     } catch (e) {
-      debugPrint('saveToSupabase xatolik: $e');
+      debugPrint('❌ Unexpected error: $e');
       rethrow;
     }
   }

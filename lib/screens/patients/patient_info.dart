@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:hive/hive.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 import '../../routes.dart';
-
-import '../../models/patient.dart';
 
 class PatientDetailsScreen extends StatefulWidget {
   final Patient patient;
@@ -121,7 +121,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
                     _buildModernInfoTile(
                       icon: Icons.phone_rounded,
                       label: 'Telefon raqami',
-                      value: widget.patient.telefonRaqami,
+                      value: widget.patient.telefonRaqami ?? "",
                       color: Colors.green,
                     ),
                     _buildModernInfoTile(
@@ -133,7 +133,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
                     _buildModernInfoTile(
                       icon: Icons.calendar_today_rounded,
                       label: 'Birinchi tashrif',
-                      value: formatter.format(widget.patient.birinchiKelganSana),
+                      value:
+                          formatter.format(widget.patient.birinchiKelganSana),
                       color: Colors.blue,
                     ),
                     _buildModernInfoTile(
@@ -463,7 +464,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
     );
   }
 
-
   void _showAddVisitDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -529,7 +529,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
+            onPressed: () async {
               // Remove the visit date
               widget.patient.tashrifSanalari.removeWhere((dateStr) {
                 final visitDate = DateTime.parse(dateStr);
@@ -538,8 +538,25 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
                     visitDate.day == date.day;
               });
 
-              // Save changes to Hive
-              widget.patient.save();
+              // Save changes to Hive (guard if object is not in a box)
+              if (widget.patient.isInBox) {
+                await widget.patient.save();
+              } else if (Hive.isBoxOpen('patients')) {
+                final box = Hive.box<Patient>('patients');
+                // Try to find and update by id if present; otherwise add
+                if (widget.patient.id != null) {
+                  final index = box.values.toList().indexWhere(
+                    (p) => p.id == widget.patient.id,
+                  );
+                  if (index != -1) {
+                    await box.putAt(index, widget.patient);
+                  } else {
+                    await box.add(widget.patient);
+                  }
+                } else {
+                  await box.add(widget.patient);
+                }
+              }
 
               // Close dialog
               Navigator.of(context).pop();
@@ -564,7 +581,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
       ),
     );
   }
-
 
   void _showFullScreenImage(BuildContext context, int initialIndex) {
     showDialog(

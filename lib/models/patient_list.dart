@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'patient.dart'; // Yaratilgan modelga import
+import 'package:stomotologiya_app/models/patient.dart';
 import '../routes.dart';
 
 class PatientList extends StatelessWidget {
@@ -23,9 +23,10 @@ class PatientList extends StatelessWidget {
               Patient patient = box.getAt(index)!;
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                  backgroundColor: const Color.fromRGBO(0, 0, 0, 0.1),
                   child: Text(
-                    (patient.ismi.isNotEmpty ? patient.ismi[0] : '?').toUpperCase(),
+                    (patient.ismi.isNotEmpty ? patient.ismi[0] : '?')
+                        .toUpperCase(),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w600,

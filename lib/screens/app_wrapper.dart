@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:stomotologiya_app/payment/payment.dart';
+import 'auth/login_screen_new.dart';
 import '../service/supabase_auth_servise.dart';
-import '../models/app_user.dart';
 import '../models/user_status.dart';
-import 'auth/login_screen.dart';
 import 'home.dart';
 
 class AppWrapper extends StatefulWidget {
@@ -16,111 +15,58 @@ class AppWrapper extends StatefulWidget {
 
 class _AppWrapperState extends State<AppWrapper> {
   final AuthService _authService = AuthService();
-
-  UserStatus _currentStatus = UserStatus.checking;
-  bool _isInitialized = false;
-
-  StreamSubscription<AppUser?>? _userSubscription;
-  StreamSubscription<UserStatus>? _statusSubscription;
+  late final Future<void> _initializationFuture;
 
   @override
   void initState() {
     super.initState();
-    _initializeServices();
-  }
-
-  Future<void> _initializeServices() async {
-    try {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (!mounted) return;
-        if (_currentStatus == UserStatus.checking) {
-          setState(() {
-            _currentStatus = UserStatus.unregistered;
-            _isInitialized = true;
-          });
-        } else if (!_isInitialized) {
-          setState(() {
-            _isInitialized = true;
-          });
-        }
-      });
-
-      _userSubscription = _authService.userStream.listen(_onUserChanged);
-      _statusSubscription = _authService.statusStream.listen(_onStatusChanged);
-
-      await _authService.initialize();
-
-      final existingUser = _authService.currentUser;
-      if (mounted && existingUser != null) {
-        setState(() {
-          _currentStatus = UserStatus.active;
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _currentStatus = UserStatus.unregistered;
-          _isInitialized = true;
-        });
-      }
-    }
-  }
-
-  void _onUserChanged(AppUser? user) {
-    if (!mounted) return;
-    if (user != null) {
-      setState(() {
-        _currentStatus = UserStatus.active;
-        _isInitialized = true;
-      });
-    } else {
-      setState(() {
-        _currentStatus = UserStatus.unregistered;
-        _isInitialized = true;
-      });
-    }
-  }
-
-  void _onStatusChanged(UserStatus status) {
-    if (mounted) {
-      setState(() {
-        _currentStatus = status;
-        _isInitialized = true;
-      });
-    }
+    _initializationFuture = _authService.initialize();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return _buildLoadingScreen('Ilova ishga tushirilmoqda...');
-    }
+    return FutureBuilder(
+      future: _initializationFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return _buildLoadingScreen('Ilova ishga tushirilmoqda...');
+        }
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      transitionBuilder: (Widget child, Animation<double> animation) {
-        return FadeTransition(
-          opacity: animation,
-          child: child,
+        if (snapshot.hasError) {
+          return const LoginScreenNew(key: ValueKey('login'));
+        }
+
+        return StreamBuilder<UserStatus>(
+          stream: _authService.statusStream,
+          builder: (context, statusSnapshot) {
+            final status = statusSnapshot.data ?? UserStatus.unregistered;
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: _buildScreenBasedOnStatus(status),
+            );
+          },
         );
       },
-      child: _buildScreenBasedOnStatus(),
     );
   }
 
-  Widget _buildScreenBasedOnStatus() {
-    switch (_currentStatus) {
+  Widget _buildScreenBasedOnStatus(UserStatus status) {
+    switch (status) {
       case UserStatus.unregistered:
       case UserStatus.error:
-        return const LoginScreen(key: ValueKey('login'));
+        return const LoginScreenNew (key: ValueKey('login'));
       case UserStatus.disabled:
         return const PaymentScreen(key: ValueKey('payment'));
       case UserStatus.active:
-        return const HomeScreen();
+        return const HomeScreen(key: ValueKey('home'));
       case UserStatus.checking:
-        return _buildLoadingScreen('Hisobingiz holati tekshirilmoqda...',
-            key: const ValueKey('checking'));
+        return _buildLoadingScreen(
+          'Hisobingiz holati tekshirilmoqda...',
+          key: const ValueKey('checking'),
+        );
     }
   }
 
@@ -243,8 +189,7 @@ class _AppWrapperState extends State<AppWrapper> {
 
   @override
   void dispose() {
-    _userSubscription?.cancel();
-    _statusSubscription?.cancel();
+    // StreamBuilder handles stream subscriptions automatically.
     super.dispose();
   }
 }

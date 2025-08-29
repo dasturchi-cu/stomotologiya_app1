@@ -19,13 +19,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
   final _formKey = GlobalKey<FormState>();
   final _patientService = PatientService();
   final _errorHandler = ErrorHandler();
-  
+
   // Controllers
   final _fullnameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _complaintController = TextEditingController();
   final _addressController = TextEditingController();
-  
+
   // State variables
   DateTime? _birthDate;
   DateTime? _firstVisitDate;
@@ -76,14 +76,16 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     return null;
   }
 
-  Future<void> _selectDate(BuildContext context, {required bool isBirthDate}) async {
+  Future<void> _selectDate(BuildContext context,
+      {required bool isBirthDate}) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isBirthDate 
-          ? (_birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 25)))
+      initialDate: isBirthDate
+          ? (_birthDate ??
+              DateTime.now().subtract(const Duration(days: 365 * 25)))
           : (_firstVisitDate ?? DateTime.now()),
-      firstDate: isBirthDate 
-          ? DateTime(1900) 
+      firstDate: isBirthDate
+          ? DateTime(1900)
           : DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
       locale: const Locale('uz', 'UZ'),
@@ -150,7 +152,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         manzil: _addressController.text.trim(),
         rasmManzili: '',
         rasmlarManzillari: [],
-        tashrifSanalari: [(_firstVisitDate ?? DateTime.now()).toIso8601String()],
+        tashrifSanalari: [
+          (_firstVisitDate ?? DateTime.now()).toIso8601String()
+        ],
       );
 
       await _patientService.addPatient(newPatient);
@@ -214,7 +218,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
               // Birth date field
               InkWell(
-                onTap: _isSaving ? null : () => _selectDate(context, isBirthDate: true),
+                onTap: _isSaving
+                    ? null
+                    : () => _selectDate(context, isBirthDate: true),
                 child: InputDecorator(
                   decoration: InputDecoration(
                     labelText: 'Tug\'ilgan sana *',
@@ -223,7 +229,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                     suffixIcon: _birthDate != null
                         ? IconButton(
                             icon: const Icon(Icons.clear),
-                            onPressed: _isSaving ? null : () => setState(() => _birthDate = null),
+                            onPressed: _isSaving
+                                ? null
+                                : () => setState(() => _birthDate = null),
                           )
                         : null,
                   ),
@@ -254,7 +262,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
               // First visit date field
               InkWell(
-                onTap: _isSaving ? null : () => _selectDate(context, isBirthDate: false),
+                onTap: _isSaving
+                    ? null
+                    : () => _selectDate(context, isBirthDate: false),
                 child: InputDecorator(
                   decoration: const InputDecoration(
                     labelText: 'Birinchi tashrif sanasi',
@@ -297,7 +307,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              
+
               if (_selectedImages.isNotEmpty)
                 SizedBox(
                   height: 120,
@@ -343,15 +353,15 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                     },
                   ),
                 ),
-              
+
               const SizedBox(height: 8),
-              
+
               OutlinedButton.icon(
                 onPressed: _isSaving ? null : _pickImages,
                 icon: const Icon(Icons.add_photo_alternate),
                 label: const Text('Rasm qo\'shish'),
               ),
-              
+
               const SizedBox(height: 32),
             ],
           ),

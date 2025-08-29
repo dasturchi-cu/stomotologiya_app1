@@ -25,15 +25,20 @@ class AppUser {
   });
 
   /// Supabase User dan AppUser yaratish
-  factory AppUser.fromSupabaseUser(Map<String, dynamic> user, {UserStatus? status}) {
+  factory AppUser.fromSupabaseUser(Map<String, dynamic> user,
+      {UserStatus? status}) {
     return AppUser(
       uid: user['id'] ?? '',
       email: user['email'] ?? '',
       displayName: user['user_metadata']?['display_name'],
       status: status ?? UserStatus.checking,
       isEmailVerified: user['email_confirmed_at'] != null,
-      createdAt: user['created_at'] != null ? DateTime.parse(user['created_at']) : DateTime.now(),
-      lastLoginAt: user['last_sign_in_at'] != null ? DateTime.parse(user['last_sign_in_at']) : DateTime.now(),
+      createdAt: user['created_at'] != null
+          ? DateTime.parse(user['created_at'])
+          : DateTime.now(),
+      lastLoginAt: user['last_sign_in_at'] != null
+          ? DateTime.parse(user['last_sign_in_at'])
+          : DateTime.now(),
     );
   }
 
@@ -44,7 +49,7 @@ class AppUser {
       email: map['email'] ?? '',
       displayName: map['displayName'],
       status: _parseUserStatus(map['status']),
-      lastPaymentDate: map['lastPaymentDate'] != null 
+      lastPaymentDate: map['lastPaymentDate'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['lastPaymentDate'])
           : null,
       accountDisabledDate: map['accountDisabledDate'] != null

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
-import '../models/patient.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 import '../service/export2excel.dart';
 
 class ExportScreen extends StatefulWidget {

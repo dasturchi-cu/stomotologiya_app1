@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:hive_flutter/adapters.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'config/supabase_config.dart';
 import 'routes.dart';
 import 'models/patient.dart';
 import 'package:flutter/foundation.dart';
 import 'package:stomotologiya_app/service/patient_service.dart';
+import 'package:stomotologiya_app/service/supabase_auth_servise.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,27 +16,24 @@ void main() async {
 
   // Initialize Hive
   await Hive.initFlutter();
-  await Hive.openBox('myBox');
 
   try {
-    // Initialize Supabase
     await Supabase.initialize(
-      url: SupabaseConfig.url,
-      anonKey: SupabaseConfig.anonKey,
-      authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.pkce,
-      ),
+      url: 'https://ptosfyxqkvtmbmwdxzna.supabase.co',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0b3NmeXhxa3Z0bWJtd2R4em5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMDI1ODgsImV4cCI6MjA3MTg3ODU4OH0.QG6lOXG_NhQdjDmALd7JJQk9WoPuFMZ_Hzr8RAizIvI',
       debug: true,
     );
 
-    // Get the Supabase client
-    final supabase = Supabase.instance.client;
+    // Initialize AuthService
+    await AuthService().initialize();
 
-    // Set up auth state change listener
-    supabase.auth.onAuthStateChange.listen((data) {
-      if (data.event == AuthChangeEvent.signedIn) {
+    // faqat initialize muvaffaqiyatli bo‘lsa
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final AuthChangeEvent event = data.event;
+      if (event == AuthChangeEvent.signedIn) {
         debugPrint('User signed in!');
-      } else if (data.event == AuthChangeEvent.signedOut) {
+      } else if (event == AuthChangeEvent.signedOut) {
         debugPrint('User signed out!');
       }
     });
@@ -47,14 +45,11 @@ void main() async {
     if (kDebugMode) {
       print('Error initializing Supabase: $e');
     }
+    return; // ❌ initialize bo‘lmasa, davom ettirmaymiz
   }
 
   // Initialize Hive with proper error handling
   try {
-    // Initialize Hive
-    await Hive.initFlutter();
-
-    // Register adapters
     if (!Hive.isAdapterRegistered(PatientAdapter().typeId)) {
       Hive.registerAdapter(PatientAdapter());
     }
@@ -142,21 +137,24 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
+      localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en', 'US'),
-        Locale('uz', 'UZ'),
+      supportedLocales: [
+        const Locale('en', 'US'),
+        const Locale('uz', 'UZ'),
       ],
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
+
+      // 🔑 Asosiy route
+      onGenerateRoute: AppRoutes.onGenerateRoute, // ✅ katta A bilan
       initialRoute: AppRoutes.wrapper,
-      onGenerateRoute: AppRoutes.onGenerateRoute,
+
       onUnknownRoute: (settings) => MaterialPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(title: const Text('Route topilmadi')),
@@ -191,4 +189,3 @@ Future<void> migrateDatabase() async {
     }
   }
 }
-// shu yaxshisi

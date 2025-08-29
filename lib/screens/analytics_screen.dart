@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/patient.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 import '../service/patient_service.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -41,7 +41,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     try {
       setState(() => _isLoading = true);
       await _patientService.initialize();
-      
+
       _patientService.getPatients().listen((patients) {
         if (mounted) {
           setState(() {
@@ -94,59 +94,61 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               _buildHeader(),
               Expanded(
                 child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : _error != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                size: 64,
-                                color: Colors.white70,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _error!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : _error != null
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  size: 64,
+                                  color: Colors.white70,
                                 ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _loadPatients,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.blue,
+                                const SizedBox(height: 16),
+                                Text(
+                                  _error!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                child: const Text('Qayta urinish'),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _patients.isEmpty
-                          ? _buildEmptyState()
-                          : FadeTransition(
-                              opacity: _fadeAnimation,
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(20),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildOverviewCards(_patients),
-                                    const SizedBox(height: 32),
-                                    _buildRecentActivity(_patients),
-                                    const SizedBox(height: 20),
-                                  ],
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: _loadPatients,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.blue,
+                                  ),
+                                  child: const Text('Qayta urinish'),
                                 ),
-                              ),
+                              ],
                             ),
+                          )
+                        : _patients.isEmpty
+                            ? _buildEmptyState()
+                            : FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildOverviewCards(_patients),
+                                      const SizedBox(height: 32),
+                                      _buildRecentActivity(_patients),
+                                      const SizedBox(height: 20),
+                                    ],
+                                  ),
+                                ),
+                              ),
               ),
             ],
           ),
@@ -333,7 +335,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

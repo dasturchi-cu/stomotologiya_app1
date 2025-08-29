@@ -1,8 +1,13 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:stomotologiya_app/models/patient.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:stomotologiya_app/service/export2excel.dart';
+import 'package:stomotologiya_app/service/patient_service.dart';
+
+// TODO: Uncomment when patient info screen is implemented
+// import 'package:stomotologiya_app/screens/patients/patient_info.dart';
 
 class PatientListScreen extends StatefulWidget {
   const PatientListScreen({Key? key}) : super(key: key);
@@ -12,63 +17,114 @@ class PatientListScreen extends StatefulWidget {
 }
 
 class _PatientListScreenState extends State<PatientListScreen> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final PatientService _patientService = PatientService();
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<Patient> _patients = [];
   bool _isLoading = true;
   String? _error;
-  String _searchQuery = '';
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _patientService.initialize();
     _loadPatients();
   }
 
   Future<void> _loadPatients() async {
     try {
+      if (!mounted) return;
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
-      // Load patients from Supabase
-      final response = await _supabase
-          .from('patients')
-          .select()
-          .order('created_at', ascending: false);
+      final patients = await _patientService.getAllPatients();
 
-      if (response == null) {
-        throw Exception('Failed to load patients');
+      if (mounted) {
+        setState(() {
+          _patients = patients;
+          _isLoading = false;
+        });
       }
-
-      final List<dynamic> data = List<dynamic>.from(response);
-      setState(() {
-        _patients = data.map((json) => Patient.fromJson(json)).toList();
-        _isLoading = false;
-      });
     } catch (e) {
-      setState(() {
-        _error = 'Bemorlarni yuklashda xatolik: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Bemorlarni yuklashda xatolik yuz berdi: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  List<Patient> get _filteredPatients {
-    if (_searchQuery.isEmpty) return _patients;
-    
-    return _patients.where((patient) {
-      return patient.ismi.toLowerCase().contains(_searchQuery) ||
-          (patient.telefonRaqami?.toLowerCase().contains(_searchQuery) ?? false);
-    }).toList();
+  Future<void> _searchPatients(String query) async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // Perform searches in parallel
+      final nameSearch = _patientService.searchByName(query);
+      final phoneSearch = _patientService.searchByPhone(query);
+      final results = await Future.wait([nameSearch, phoneSearch]);
+
+      final nameResults = results[0];
+      final phoneResults = results[1];
+
+      // Combine and deduplicate results using a Map
+      final allResults = <String, Patient>{};
+      for (var p in nameResults) {
+        allResults[p.id!] = p;
+      }
+      for (var p in phoneResults) {
+        allResults[p.id!] = p;
+      }
+
+      if (mounted) {
+        setState(() {
+          _patients = allResults.values.toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Qidirishda xatolik: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  // Export patients to Excel
+  Future<void> _exportToExcel() async {
+    try {
+      await ExportService.exportPatientsToExcel(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Eksport qilishda xatolik: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Refresh patient list
+  Future<void> _refreshPatients() async {
+    await _loadPatients();
   }
 
   @override
@@ -80,7 +136,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
         ),
       );
     }
-    
+
     if (_error != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Xatolik')),
@@ -100,16 +156,22 @@ class _PatientListScreenState extends State<PatientListScreen> {
         ),
       );
     }
-    
-    final patients = _filteredPatients;
-    
+
+    final patients = _patients;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bemorlar Ro\'yxati'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadPatients,
+            onPressed: _refreshPatients,
+            tooltip: 'Yangilash',
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: _exportToExcel,
+            tooltip: 'Excelga yuklab olish',
           ),
         ],
       ),
@@ -127,60 +189,96 @@ class _PatientListScreenState extends State<PatientListScreen> {
                 ),
               ),
               onChanged: (value) {
-                setState(() {
-                  _searchQuery = value.toLowerCase().trim();
+                if (_debounce?.isActive ?? false) _debounce!.cancel();
+                _debounce = Timer(const Duration(milliseconds: 500), () {
+                  final query = value.trim();
+                  if (query.isNotEmpty) {
+                    _searchPatients(query);
+                  } else {
+                    _loadPatients();
+                  }
                 });
               },
             ),
           ),
           Expanded(
-            child: patients.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Bemorlar topilmadi',
-                      style: TextStyle(fontSize: 16),
+            child: RefreshIndicator(
+              onRefresh: _refreshPatients,
+              child: patients.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Bemorlar topilmadi',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: patients.length,
+                      itemBuilder: (context, index) {
+                        final patient = patients[index];
+                        final lastVisit = patient.tashrifSanalari.isNotEmpty
+                            ? DateFormat('dd.MM.yyyy').format(
+                                DateTime.parse(patient.tashrifSanalari.last))
+                            : 'Tashrif mavjud emas';
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 4.0,
+                          ),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                          child: ListTile(
+                            title: Text(
+                              patient.ismi,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                                                Text(
+                                  patient.telefonRaqami ?? 'Raqam kiritilmagan',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Oxirgi tashrif: $lastVisit',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blueGrey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            trailing:
+                                const Icon(Icons.arrow_forward_ios, size: 16),
+                            onTap: () {
+                              // TODO: Navigate to patient details screen
+                              Navigator.pushNamed(
+                                context,
+                                '/patient_details',
+                                arguments: patient.id,
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
-                  )
-                : ListView.builder(
-                    itemCount: patients.length,
-                    itemBuilder: (context, index) {
-                      final patient = patients[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 8.0,
-                          vertical: 4.0,
-                        ),
-                        child: ListTile(
-                          title: Text(
-                            patient.ismi,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            patient.telefonRaqami ?? 'Telefon raqami kiritilmagan',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                          onTap: () {
-                            // TODO: Navigate to patient details
-                            // Navigator.pushNamed(
-                            //   context,
-                            //   '/patient_details',
-                            //   arguments: patient.id,
-                            // );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+            ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // TODO: Navigate to add patient screen
-          // Navigator.pushNamed(context, '/add_patient');
+          Navigator.pushNamed(context, '/add_patient').then((_) {
+            _loadPatients();
+          });
         },
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.person_add),
+        label: const Text('Bemor qo\'shish'),
+        backgroundColor: Theme.of(context).primaryColor,
       ),
     );
   }

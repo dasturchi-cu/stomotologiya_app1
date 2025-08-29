@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart'; // Sana formatlash uchun import
-
-import '../../models/patient.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 
 class PatientEdit extends StatefulWidget {
   final int patientIndex; // Tahrir qilinayotgan bemorning indeksi
@@ -89,7 +88,7 @@ class _PatientEditState extends State<PatientEdit> {
   void _saveChanges() {
     var box = Hive.box<Patient>('patients');
     var patient = box.getAt(widget.patientIndex);
-    
+
     if (patient != null) {
       patient.ismi = fullNameController.text;
       patient.telefonRaqami = phoneNumberController.text;
@@ -97,21 +96,21 @@ class _PatientEditState extends State<PatientEdit> {
       patient.manzil = addressController.text;
       patient.tugilganSana = birthDate ?? DateTime.now();
       patient.birinchiKelganSana = firstVisitDate ?? DateTime.now();
-      
+
       if (imagePath.isNotEmpty) {
         patient.rasmManzili = imagePath;
         if (!patient.rasmlarManzillari.contains(imagePath)) {
           patient.rasmlarManzillari.add(imagePath);
         }
       }
-      
-      patient.save();
-      
+
+      box.putAt(widget.patientIndex, patient);
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bemor ma\'lumotlari yangilandi')),
       );
-      
+
       // Go back to previous screen
       Navigator.pop(context);
     }
@@ -170,7 +169,8 @@ class _PatientEditState extends State<PatientEdit> {
                 Expanded(
                   child: TextField(
                     controller: firstVisitDateController,
-                    decoration: InputDecoration(labelText: 'Birinchi kelgan sana'),
+                    decoration:
+                        InputDecoration(labelText: 'Birinchi kelgan sana'),
                     readOnly: true,
                     onTap: () => _selectDate(context, false),
                   ),

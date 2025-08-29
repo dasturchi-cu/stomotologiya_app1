@@ -13,50 +13,13 @@ class AuthService {
 
   late final SupabaseClient _supabase;
   late final GoTrueClient _auth;
-  
-  Future<void> initializeService() async {
-    try {
-      // Initialize Supabase if not already initialized
-      if (!Supabase.instance.isInitialized) {
-        await Supabase.initialize(
-          url: 'YOUR_SUPABASE_URL',
-          anonKey: 'YOUR_SUPABASE_ANON_KEY',
-        );
-      }
-      
-      _supabase = Supabase.instance.client;
-      _auth = _supabase.auth;
-      
-      _authStateSubscription = _auth.onAuthStateChange.listen((authState) {
-        final session = authState.session;
-        if (session != null) {
-          _handleSupabaseUser(session.user);
-        } else {
-          _currentUser = null;
-          _userController.add(null);
-          _statusController.add(UserStatus.unregistered);
-        }
-      });
-
-      final currentSession = _auth.currentSession;
-      if (currentSession != null) {
-        await _handleSupabaseUser(currentSession.user);
-      } else {
-        _statusController.add(UserStatus.unregistered);
-      }
-
-      debugPrint('Supabase Auth service ishga tushdi');
-    } catch (e) {
-      debugPrint('Supabase initialize xatoligi: $e');
-      _statusController.add(UserStatus.unregistered);
-      rethrow;
-    }
-  }
 
   final StreamController<AppUser?> _userController =
-  StreamController<AppUser?>.broadcast();
+      StreamController<AppUser?>.broadcast();
   final StreamController<UserStatus> _statusController =
-  StreamController<UserStatus>.broadcast();
+      StreamController<UserStatus>.broadcast();
+
+  bool _isInitialized = false;
 
   StreamSubscription<AuthState>? _authStateSubscription;
 
@@ -67,6 +30,12 @@ class AuthService {
   AppUser? get currentUser => _currentUser;
 
   Future<void> initialize() async {
+    if (_isInitialized) {
+      return;
+    }
+    _supabase = Supabase.instance.client;
+    _auth = _supabase.auth;
+
     try {
       _authStateSubscription = _auth.onAuthStateChange.listen((authState) {
         final session = authState.session;
@@ -86,6 +55,7 @@ class AuthService {
         _statusController.add(UserStatus.unregistered);
       }
 
+      _isInitialized = true;
       debugPrint('Supabase Auth service ishga tushdi');
     } catch (e) {
       debugPrint('Supabase initialize xatoligi: $e');
@@ -110,7 +80,7 @@ class AuthService {
           .maybeSingle()
           .timeout(const Duration(seconds: 10));
 
-      // If user doesn't exist in the database, create a new user
+      // If user doesn't exist in the database, try to create a new user (may fail due to RLS)
       if (response == null) {
         final newUser = {
           'id': supabaseUser.id,
@@ -121,8 +91,13 @@ class AuthService {
           'disabled': false,
         };
 
-        await _supabase.from('users').insert(newUser);
-        
+        try {
+          await _supabase.from('users').insert(newUser);
+        } catch (e) {
+          // RLS may forbid client-side inserts; log and continue without failing
+          debugPrint('RLS prevented client insert into users table. Skipping. Error: $e');
+        }
+
         _currentUser = AppUser(
           uid: supabaseUser.id,
           email: supabaseUser.email ?? '',
@@ -134,13 +109,10 @@ class AuthService {
         );
       } else {
         // User exists, update last login time
-        await _supabase
-            .from('users')
-            .update({
-              'last_login_at': DateTime.now().toIso8601String(),
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', supabaseUser.id);
+        await _supabase.from('users').update({
+          'last_login_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', supabaseUser.id);
 
         _currentUser = AppUser(
           uid: supabaseUser.id,
@@ -148,8 +120,8 @@ class AuthService {
           displayName: response['display_name'] ??
               supabaseUser.email?.split('@')[0] ??
               'User',
-          status: (response['disabled'] == true) 
-              ? UserStatus.disabled 
+          status: (response['disabled'] == true)
+              ? UserStatus.disabled
               : UserStatus.active,
           isEmailVerified: supabaseUser.emailConfirmedAt != null,
           createdAt: response['created_at'] != null
@@ -166,18 +138,18 @@ class AuthService {
     } catch (e, stackTrace) {
       debugPrint('Error handling user session: $e');
       debugPrint('Stack trace: $stackTrace');
-      
+
       // If there's an error, sign out to prevent invalid states
       try {
         await _auth.signOut();
       } catch (signOutError) {
         debugPrint('Error during sign out: $signOutError');
       }
-      
+
       _currentUser = null;
       _userController.add(null);
       _statusController.add(UserStatus.unregistered);
-      
+
       // Re-throw the error if it's a critical error
       if (e is! TimeoutException) {
         rethrow;
@@ -185,8 +157,8 @@ class AuthService {
     }
   }
 
-  Future<AppUser?> signInWithEmailAndPassword(
-      String email, String password) async {
+  Future<AppUser?> signInWithEmailAndPassword(String email, String password,
+      {String? displayName}) async {
     try {
       final response = await _auth.signInWithPassword(
         email: email,
@@ -234,17 +206,7 @@ class AuthService {
       );
 
       if (response.user != null) {
-        // Yangi user ma'lumotlarini users jadvaliga qo'shish
-        await _supabase
-          .from('users')
-          .insert({
-            'id': response.user!.id,
-            'email': email,
-            'display_name': displayName ?? '',
-            'disabled': false,
-            'created_at': DateTime.now().toIso8601String(),
-          });
-
+        // Do not insert into 'users' here; RLS blocks client inserts.
         await _handleSupabaseUser(response.user);
         debugPrint('Supabase register muvaffaqiyatli');
         return _currentUser;
@@ -256,8 +218,14 @@ class AuthService {
       _statusController.add(UserStatus.error);
 
       if (e.toString().contains('User already registered')) {
-        throw Exception(
-            'Bu email allaqachon ishlatilgan. Boshqa email kiriting yoki login qiling.');
+        // Attempt to log the user in if already registered
+        try {
+          await signInWithEmailAndPassword(email, password);
+          return _currentUser;
+        } catch (_) {
+          throw Exception(
+              'Bu email allaqachon ishlatilgan. Boshqa email kiriting yoki login qiling.');
+        }
       } else if (e.toString().contains('Password should be at least')) {
         throw Exception('Parol juda zaif. Kamida 6 ta belgi kiriting.');
       } else if (e.toString().contains('Invalid email')) {
@@ -284,7 +252,6 @@ class AuthService {
       // OAuth flow will open in browser, result comes through authStateChange
       debugPrint('Google sign-in started');
       return null;
-
     } catch (e) {
       _statusController.add(UserStatus.error);
 

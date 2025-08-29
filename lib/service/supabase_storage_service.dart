@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseStorageService {
-  static final SupabaseStorageService _instance = SupabaseStorageService._internal();
+  static final SupabaseStorageService _instance =
+      SupabaseStorageService._internal();
   final SupabaseClient _supabase = Supabase.instance.client;
   static const String bucketName = 'rasmlar';
   bool _initialized = false;
@@ -17,28 +18,9 @@ class SupabaseStorageService {
   // Initialize the storage service
   Future<void> initialize() async {
     if (_initialized) return;
-    
-    try {
-      // Only proceed if user is authenticated
-      if (_supabase.auth.currentUser == null) {
-        throw Exception('User must be authenticated to use storage');
-      }
-      
-      // Check if bucket exists
-      final buckets = await _supabase.storage.listBuckets();
-      if (!buckets.any((bucket) => bucket.name == bucketName)) {
-        // Create bucket if it doesn't exist (requires proper RLS policies)
-        await _supabase.storage.createBucket(bucketName);
-      }
-      
-      _initialized = true;
-      debugPrint('Supabase Storage initialized successfully');
-    } catch (e, stackTrace) {
-      debugPrint('Error initializing Supabase Storage: $e');
-      debugPrint('Stack trace: $stackTrace');
-      _initialized = false;
-      rethrow; // Rethrow to handle in the calling code
-    }
+    _initialized = true; // Mark as initialized to prevent multiple calls
+    debugPrint('Supabase Storage initialization bypassed - bucket check removed');
+    return; // Skip the bucket check completely
   }
 
   // Sign in with email and password
@@ -103,23 +85,23 @@ class SupabaseStorageService {
         if (user == null) {
           throw Exception('Foydalanuvchi tizimga kirishini tekshiring');
         }
-        
+
         // Ensure storage is initialized
         await initialize();
-        
+
         // Convert patientId to string to avoid Hive key issues
         final patientIdStr = patientId.toString();
-        
+
         // Check if file exists and is not empty
         if (!await imageFile.exists()) {
           throw Exception('Rasm fayli topilmadi');
         }
-        
+
         final fileLength = await imageFile.length();
         if (fileLength == 0) {
           throw Exception('Rasm fayli bo\'sh');
         }
-        
+
         // Create file path with timestamp
         final fileExt = imageFile.path.split('.').last;
         final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
@@ -127,36 +109,32 @@ class SupabaseStorageService {
 
         // Read file bytes
         final bytes = await imageFile.readAsBytes();
-        
+
         // Upload file to Supabase Storage
-        await _supabase.storage
-            .from(bucketName)
-            .uploadBinary(filePath, bytes);
+        await _supabase.storage.from(bucketName).uploadBinary(filePath, bytes);
 
         // Get public URL of the uploaded file
-        final publicUrl = _supabase.storage
-            .from(bucketName)
-            .getPublicUrl(filePath);
-        
+        final publicUrl =
+            _supabase.storage.from(bucketName).getPublicUrl(filePath);
+
         if (publicUrl.isEmpty) {
           throw Exception('Rasm URL manzili olinmadi');
         }
-        
+
         debugPrint('Rasm muvaffaqiyatli yuklandi: $publicUrl');
         return publicUrl;
-        
       } catch (e) {
         lastError = e is Exception ? e : Exception(e.toString());
         attempt++;
         debugPrint('Rasm yuklashda xatolik (urush $attempt/$maxRetries): $e');
-        
+
         if (attempt < maxRetries) {
           // Exponential backoff
           await Future.delayed(Duration(seconds: attempt * 2));
         }
       }
     }
-    
+
     // If we get here, all retries failed
     throw lastError ?? Exception('Rasm yuklashda noma\'lum xatolik yuz berdi');
   }
@@ -164,8 +142,21 @@ class SupabaseStorageService {
   // Rasmni o'chirish
   Future<void> deleteImage(String imageUrl) async {
     try {
-      // URL dan fayl nomini ajratib olish
-      final filePath = imageUrl.split('/').last;
+      // Supabase public URL formati odatda:
+      // https://<project>.supabase.co/storage/v1/object/public/<bucketName>/<path>
+      // Bizga <path> qismi kerak (folder/filename.ext)
+      final uri = Uri.parse(imageUrl);
+      final segments = uri.pathSegments;
+      final publicIdx = segments.indexOf('public');
+      if (publicIdx == -1 ||
+          publicIdx + 1 >= segments.length ||
+          segments[publicIdx + 1] != bucketName) {
+        throw Exception("Noto'g'ri Supabase Storage URL: $imageUrl");
+      }
+      final filePath = segments.sublist(publicIdx + 2).join('/');
+      if (filePath.isEmpty) {
+        throw Exception('URL dan fayl yo\'li aniqlanmadi');
+      }
       await _supabase.storage.from(bucketName).remove([filePath]);
     } catch (e) {
       print('Rasmni o\'chirishda xatolik: $e');

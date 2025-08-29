@@ -20,7 +20,7 @@ class PatientAdapter extends TypeAdapter<Patient> {
       id: fields[0] as String?,
       ismi: fields[1] as String,
       tugilganSana: fields[2] as DateTime,
-      telefonRaqami: fields[3] as String,
+      telefonRaqami: fields[3] as String?,
       birinchiKelganSana: fields[4] as DateTime,
       shikoyat: fields[5] as String,
       manzil: fields[6] as String,

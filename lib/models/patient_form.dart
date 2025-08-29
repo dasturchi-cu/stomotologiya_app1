@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:stomotologiya_app/models/patient.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PatientForm extends StatefulWidget {
   const PatientForm({super.key});
@@ -26,7 +26,7 @@ class _PatientFormState extends State<PatientForm> {
 
   DateTime? birthDate;
   DateTime? firstVisitDate;
-  
+
   final List<File> _images = [];
   bool _isUploading = false;
 
@@ -103,7 +103,8 @@ class _PatientFormState extends State<PatientForm> {
                       Expanded(
                         child: TextField(
                           controller: birthDateController,
-                          decoration: InputDecoration(labelText: 'Tug‘ilgan sana'),
+                          decoration:
+                              InputDecoration(labelText: 'Tug‘ilgan sana'),
                           readOnly: true,
                         ),
                       ),
@@ -138,88 +139,92 @@ class _PatientFormState extends State<PatientForm> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 20),
-              // Rasm yuklash qismi
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Bemor rasmlari:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8),
-                  _images.isEmpty
-                      ? Text('Rasmlar qo\'shilmagan')
-                      : SizedBox(
-                          height: 100,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _images.length,
-                            itemBuilder: (context, index) {
-                              return Stack(
-                                children: [
-                                  Container(
-                                    width: 100,
-                                    height: 100,
-                                    margin: EdgeInsets.only(right: 8),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Image.file(
-                                      _images[index],
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: IconButton(
-                                      icon: Icon(Icons.close, color: Colors.red),
-                                      onPressed: () => _removeImage(index),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                  SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _pickImages,
-                    icon: Icon(Icons.add_photo_alternate),
-                    label: Text('Rasm qo\'shish'),
+                  // Rasm yuklash qismi
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Bemor rasmlari:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 8),
+                      _images.isEmpty
+                          ? Text('Rasmlar qo\'shilmagan')
+                          : SizedBox(
+                              height: 100,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _images.length,
+                                itemBuilder: (context, index) {
+                                  return Stack(
+                                    children: [
+                                      Container(
+                                        width: 100,
+                                        height: 100,
+                                        margin: EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          border:
+                                              Border.all(color: Colors.grey),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Image.file(
+                                          _images[index],
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        right: 0,
+                                        top: 0,
+                                        child: IconButton(
+                                          icon: Icon(Icons.close,
+                                              color: Colors.red),
+                                          onPressed: () => _removeImage(index),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                      SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _pickImages,
+                        icon: Icon(Icons.add_photo_alternate),
+                        label: Text('Rasm qo\'shish'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              SizedBox(height: 10),
-              Row(
-                children: [
-                  Checkbox(
-                    value: speaksRussian,
-                    onChanged: (value) {
-                      setState(() {
-                        speaksRussian = value ?? false;
-                      });
-                    },
+                  SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: speaksRussian,
+                        onChanged: (value) {
+                          setState(() {
+                            speaksRussian = value ?? false;
+                          });
+                        },
+                      ),
+                      Text('Rus tili'),
+                      Checkbox(
+                        value: speaksEnglish,
+                        onChanged: (value) {
+                          setState(() {
+                            speaksEnglish = value ?? false;
+                          });
+                        },
+                      ),
+                      Text('Ingliz tili'),
+                      Checkbox(
+                        value: speaksUzbek,
+                        onChanged: (value) {
+                          setState(() {
+                            speaksUzbek = value ?? false;
+                          });
+                        },
+                      ),
+                      Text('O‘zbek tili'),
+                    ],
                   ),
-                  Text('Rus tili'),
-                  Checkbox(
-                    value: speaksEnglish,
-                    onChanged: (value) {
-                      setState(() {
-                        speaksEnglish = value ?? false;
-                      });
-                    },
-                  ),
-                  Text('Ingliz tili'),
-                  Checkbox(
-                    value: speaksUzbek,
-                    onChanged: (value) {
-                      setState(() {
-                        speaksUzbek = value ?? false;
-                      });
-                    },
-                  ),
-                  Text('O‘zbek tili'),
-                ],
-              ),
                   _buildModernTextField(
                     controller: addressController,
                     label: 'Manzil',
@@ -250,7 +255,8 @@ class _PatientFormState extends State<PatientForm> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
                                   ),
                                 ),
                                 SizedBox(width: 12),
@@ -449,11 +455,12 @@ class _PatientFormState extends State<PatientForm> {
 
     try {
       debugPrint('Bemor saqlash boshlandi...');
-      
+
       // Create patient object with all required fields
       final newPatient = Patient(
         ismi: fullNameController.text.trim(),
-        tugilganSana: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+        tugilganSana: birthDate ??
+            DateTime.now().subtract(const Duration(days: 365 * 30)),
         telefonRaqami: phoneNumberController.text.trim(),
         birinchiKelganSana: firstVisitDate ?? DateTime.now(),
         shikoyat: complaintController.text.trim(),
@@ -472,16 +479,17 @@ class _PatientFormState extends State<PatientForm> {
       if (_images.isNotEmpty) {
         for (final image in _images) {
           try {
-            final fileName = '${newPatient.id ?? 'temp'}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final fileName =
+                '${newPatient.id ?? 'temp'}_${DateTime.now().millisecondsSinceEpoch}.jpg';
             final bytes = await image.readAsBytes();
             await Supabase.instance.client.storage
                 .from('patient-images')
                 .uploadBinary(fileName, bytes);
-            
+
             final imageUrl = Supabase.instance.client.storage
                 .from('patient-images')
                 .getPublicUrl(fileName);
-            
+
             // Update patient with the new image URL
             newPatient.rasmlarManzillari.add(imageUrl);
             await newPatient.saveToSupabase();
@@ -489,7 +497,8 @@ class _PatientFormState extends State<PatientForm> {
             debugPrint('Rasm yuklashda xatolik: $e');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Rasm yuklashda xatolik: ${e.toString()}')),
+                SnackBar(
+                    content: Text('Rasm yuklashda xatolik: ${e.toString()}')),
               );
             }
           }
