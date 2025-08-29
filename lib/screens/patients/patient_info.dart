@@ -16,133 +16,413 @@ class PatientDetailsScreen extends StatefulWidget {
 class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
   @override
   Widget build(BuildContext context) {
-    final formatter = DateFormat('yyyy-MM-dd');
+    final formatter = DateFormat('dd.MM.yyyy');
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.patient.fullName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.photo_library),
-            tooltip: 'Rasmlarni tahrirlash',
-            onPressed: () => _editPatientImages(context),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddVisitDialog(context);
-        },
-        child: Icon(Icons.add),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              elevation: 6,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
+      backgroundColor: Colors.grey[50],
+      body: CustomScrollView(
+        slivers: [
+          // Modern SliverAppBar with gradient
+          SliverAppBar(
+            expandedHeight: 200,
+            floating: false,
+            pinned: true,
+            elevation: 0,
+            backgroundColor: Colors.blue[600],
+            foregroundColor: Colors.white,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue[600]!, Colors.blue[400]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Patient Images Gallery
-                    if (widget.patient.imagePaths.isNotEmpty) ...[
-                      const Text(
-                        "Tibbiy Rasmlar",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                    const SizedBox(height: 40),
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            spreadRadius: 2,
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          _getInitials(widget.patient.ismi),
+                          style: TextStyle(
+                            color: Colors.blue[600],
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 200,
-                        child: _buildImageGallery(context),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // Patient Information
-                    _buildInfoTile(
-                        Icons.phone, 'Telefon', widget.patient.phoneNumber),
-                    _buildInfoTile(Icons.cake, 'Tug\'ilgan sana',
-                        formatter.format(widget.patient.birthDate)),
-                    _buildInfoTile(Icons.calendar_today, 'Birinchi tashrif',
-                        formatter.format(widget.patient.firstVisitDate)),
-                    _buildInfoTile(Icons.report_problem, 'Shikoyat',
-                        widget.patient.complaint),
-                    _buildInfoTile(
-                        Icons.home, 'Manzil', widget.patient.address),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              elevation: 6,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  spacing: 10,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Kelgan sanalari",
-                      style: TextStyle(
-                        fontSize: 18,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      widget.patient.ismi,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    _buildVisitDatesList()
+                    const SizedBox(height: 4),
+                    Text(
+                      'Bemor ma\'lumotlari',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-          ],
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.edit_rounded),
+                tooltip: 'Tahrirlash',
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    AppRoutes.patientEdit,
+                    arguments: widget.patient,
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.photo_library_rounded),
+                tooltip: 'Rasmlar',
+                onPressed: () => _editPatientImages(context),
+              ),
+            ],
+          ),
+          // Main content
+          SliverPadding(
+            padding: const EdgeInsets.all(20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // Patient Information Card
+                _buildModernInfoCard(
+                  title: 'Asosiy Ma\'lumotlar',
+                  icon: Icons.person_rounded,
+                  children: [
+                    _buildModernInfoTile(
+                      icon: Icons.phone_rounded,
+                      label: 'Telefon raqami',
+                      value: widget.patient.telefonRaqami,
+                      color: Colors.green,
+                    ),
+                    _buildModernInfoTile(
+                      icon: Icons.cake_rounded,
+                      label: 'Tug\'ilgan sana',
+                      value: formatter.format(widget.patient.tugilganSana),
+                      color: Colors.orange,
+                    ),
+                    _buildModernInfoTile(
+                      icon: Icons.calendar_today_rounded,
+                      label: 'Birinchi tashrif',
+                      value: formatter.format(widget.patient.birinchiKelganSana),
+                      color: Colors.blue,
+                    ),
+                    _buildModernInfoTile(
+                      icon: Icons.location_on_rounded,
+                      label: 'Manzil',
+                      value: widget.patient.manzil,
+                      color: Colors.red,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Medical Information Card
+                _buildModernInfoCard(
+                  title: 'Tibbiy Ma\'lumotlar',
+                  icon: Icons.medical_services_rounded,
+                  children: [
+                    _buildModernInfoTile(
+                      icon: Icons.report_problem_rounded,
+                      label: 'Shikoyat',
+                      value: widget.patient.shikoyat,
+                      color: Colors.purple,
+                      isExpandable: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Images Gallery Card
+                if (widget.patient.rasmlarManzillari.isNotEmpty)
+                  _buildModernInfoCard(
+                    title: 'Tibbiy Rasmlar',
+                    icon: Icons.photo_library_rounded,
+                    children: [
+                      SizedBox(
+                        height: 200,
+                        child: _buildModernImageGallery(context),
+                      ),
+                    ],
+                  ),
+                if (widget.patient.rasmlarManzillari.isNotEmpty)
+                  const SizedBox(height: 20),
+                // Visit History Card
+                _buildModernInfoCard(
+                  title: 'Tashrif Tarixi',
+                  icon: Icons.history_rounded,
+                  children: [
+                    if (widget.patient.tashrifSanalari.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.event_busy_rounded,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Hozircha qo\'shimcha tashriflar yo\'q',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ...widget.patient.tashrifSanalari.map(
+                        (date) => _buildVisitTile(date),
+                      ),
+                  ],
+                ),
+              ]),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddVisitDialog(context),
+        backgroundColor: Colors.blue[600],
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text(
+          'Tashrif qo\'shish',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
 
-  Widget _buildVisitDatesList() {
-    if (widget.patient.visitDates.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text("Hali tashriflar yo'q"),
-        ),
-      );
-    }
+  // Get initials from name
+  String _getInitials(String fullName) {
+    if (fullName.isEmpty) return '?';
+    return fullName
+        .split(' ')
+        .where((s) => s.isNotEmpty)
+        .map((s) => s[0].toUpperCase())
+        .take(2)
+        .join('');
+  }
 
-    // Sort dates newest first
-    final sortedDates = List<DateTime>.from(widget.patient.visitDates)
-      ..sort((a, b) => b.compareTo(a));
-
-    final formatter = DateFormat('yyyy-MM-dd');
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: sortedDates.length,
-      itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: const Icon(Icons.calendar_month),
-            title: Text(
-              formatter.format(sortedDates[index]),
-              style: const TextStyle(fontWeight: FontWeight.w500),
+  // Modern info card widget
+  Widget _buildModernInfoCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue[50]!, Colors.blue[100]!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
             ),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _removeVisitDate(context, sortedDates[index]),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[600],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: children,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Modern info tile widget
+  Widget _buildModernInfoTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    bool isExpandable = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                  maxLines: isExpandable ? null : 2,
+                  overflow: isExpandable ? null : TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Modern image gallery widget
+  Widget _buildModernImageGallery(BuildContext context) {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemCount: widget.patient.rasmlarManzillari.length,
+      itemBuilder: (context, index) {
+        return Container(
+          width: 150,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.2),
+                spreadRadius: 1,
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              widget.patient.rasmlarManzillari[index],
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: Colors.grey[200],
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.broken_image_rounded,
+                        size: 40,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Rasm yuklanmadi',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         );
@@ -150,13 +430,73 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
     );
   }
 
+  // Visit tile widget
+  Widget _buildVisitTile(String date) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.green.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle_rounded,
+            color: Colors.green[600],
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            DateFormat('dd.MM.yyyy').format(DateTime.parse(date)),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   void _showAddVisitDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AddVisitDialog(
-        onAddVisit: (date) {
-          _addVisitDate(context, date);
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('Yangi Tashrif'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Yangi tashrif sanasini tanlang:'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                );
+                if (date != null) {
+                  Navigator.of(context).pop();
+                  _addVisitDate(context, date);
+                }
+              },
+              child: const Text('Sana tanlash'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Bekor qilish'),
+          ),
+        ],
       ),
     );
   }
@@ -191,10 +531,12 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               // Remove the visit date
-              widget.patient.visitDates.removeWhere((visitDate) =>
-                  visitDate.year == date.year &&
-                  visitDate.month == date.month &&
-                  visitDate.day == date.day);
+              widget.patient.tashrifSanalari.removeWhere((dateStr) {
+                final visitDate = DateTime.parse(dateStr);
+                return visitDate.year == date.year &&
+                    visitDate.month == date.month &&
+                    visitDate.day == date.day;
+              });
 
               // Save changes to Hive
               widget.patient.save();
@@ -223,77 +565,47 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
     );
   }
 
-  Widget _buildImageGallery(BuildContext context) {
-    return widget.patient.imagePaths.isEmpty
-        ? const Center(child: Text("Rasmlar yo'q"))
-        : PageView.builder(
-            itemCount: widget.patient.imagePaths.length,
-            itemBuilder: (context, index) {
-              return GestureDetector(
-                onTap: () => _showFullScreenImage(context, index),
-                child: Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8.0),
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      widget.patient.imagePaths[index],
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.broken_image,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-  }
 
   void _showFullScreenImage(BuildContext context, int initialIndex) {
-    Navigator.of(context).pushNamed(
-      AppRoutes.imageViewer,
-      arguments: {
-        'imagePaths': widget.patient.imagePaths,
-        'initialIndex': initialIndex,
-      },
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            PageView.builder(
+              itemCount: widget.patient.rasmlarManzillari.length,
+              controller: PageController(initialPage: initialIndex),
+              itemBuilder: (context, index) {
+                return InteractiveViewer(
+                  child: Image.network(
+                    widget.patient.rasmlarManzillari[index],
+                    fit: BoxFit.contain,
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  void _editPatientImages(BuildContext context) async {
-    final result = await Navigator.of(context).pushNamed(
-      AppRoutes.patientImagesEdit,
-      arguments: widget.patient,
+  void _editPatientImages(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Rasm tahrirlash funksiyasi tez orada qo\'shiladi'),
+        backgroundColor: Colors.blue,
+      ),
     );
-
-    // Refresh the screen if images were updated
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rasmlar yangilandi')),
-      );
-    }
   }
 
   Widget _buildInfoTile(IconData icon, String label, String value) {
@@ -319,6 +631,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
+                      color: Colors.black87,
                     )),
               ],
             ),

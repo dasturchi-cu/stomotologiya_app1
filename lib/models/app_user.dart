@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'user_status.dart';
 
 /// Ilova foydalanuvchisi modeli
@@ -25,16 +24,16 @@ class AppUser {
     required this.lastLoginAt,
   });
 
-  /// Firebase User dan AppUser yaratish
-  factory AppUser.fromFirebaseUser(User firebaseUser, {UserStatus? status}) {
+  /// Supabase User dan AppUser yaratish
+  factory AppUser.fromSupabaseUser(Map<String, dynamic> user, {UserStatus? status}) {
     return AppUser(
-      uid: firebaseUser.uid,
-      email: firebaseUser.email ?? '',
-      displayName: firebaseUser.displayName,
+      uid: user['id'] ?? '',
+      email: user['email'] ?? '',
+      displayName: user['user_metadata']?['display_name'],
       status: status ?? UserStatus.checking,
-      isEmailVerified: firebaseUser.emailVerified,
-      createdAt: firebaseUser.metadata.creationTime ?? DateTime.now(),
-      lastLoginAt: firebaseUser.metadata.lastSignInTime ?? DateTime.now(),
+      isEmailVerified: user['email_confirmed_at'] != null,
+      createdAt: user['created_at'] != null ? DateTime.parse(user['created_at']) : DateTime.now(),
+      lastLoginAt: user['last_sign_in_at'] != null ? DateTime.parse(user['last_sign_in_at']) : DateTime.now(),
     );
   }
 

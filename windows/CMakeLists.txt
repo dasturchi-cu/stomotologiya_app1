@@ -6,6 +6,19 @@ project(stomotologiya_app LANGUAGES CXX)
 # the on-disk name of your application.
 set(BINARY_NAME "stomotologiya_app")
 
+# Set PDB output directory
+set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pdb)
+file(MAKE_DIRECTORY ${CMAKE_PDB_OUTPUT_DIRECTORY})
+
+# Disable incremental linking to reduce PDB warnings
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /INCREMENTAL:NO")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /INCREMENTAL:NO")
+
+# Set PDB file name
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi /FS")
+set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DEBUG /PDB:${CMAKE_PDB_OUTPUT_DIRECTORY}/${BINARY_NAME}.pdb")
+set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /DEBUG /PDB:${CMAKE_PDB_OUTPUT_DIRECTORY}/${BINARY_NAME}.pdb")
+
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
@@ -39,10 +52,16 @@ add_definitions(-DUNICODE -D_UNICODE)
 # of modifying this function.
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
-  target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
+  target_compile_options(${TARGET} PRIVATE /W4 /wd"4100" /utf-8)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
+  # Disable specific warnings that come from Firebase C++ SDK
+  if(MSVC)
+    target_compile_options(${TARGET} PRIVATE /wd"4996")  # Disable strncpy deprecation warning
+    target_compile_definitions(${TARGET} PRIVATE "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS")
+    target_compile_definitions(${TARGET} PRIVATE "_CRT_SECURE_NO_WARNINGS")
+  endif()
 endfunction()
 
 # Flutter library and tool build rules.

@@ -17,18 +17,18 @@ class PatientAdapter extends TypeAdapter<Patient> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Patient(
-      fullName: fields[0] as String,
-      birthDate: fields[1] as DateTime,
-      phoneNumber: fields[2] as String,
-      firstVisitDate: fields[3] as DateTime,
-      complaint: fields[4] as String,
-      speaksRussian: fields[5] as String,
-      speaksEnglish: fields[6] as String,
-      speaksUzbek: fields[7] as String,
-      address: fields[8] as String,
-      imagePath: fields[9] as String,
-      imagePaths: (fields[10] as List).cast<String>(),
-      visitDates: (fields[11] as List?)?.cast<DateTime>(),
+      id: fields[0] as String?,
+      ismi: fields[1] as String,
+      tugilganSana: fields[2] as DateTime,
+      telefonRaqami: fields[3] as String,
+      birinchiKelganSana: fields[4] as DateTime,
+      shikoyat: fields[5] as String,
+      manzil: fields[6] as String,
+      rasmManzili: fields[7] as String,
+      rasmlarManzillari: (fields[8] as List?)?.cast<String>(),
+      tashrifSanalari: (fields[9] as List?)?.cast<String>(),
+      createdAt: fields[10] as DateTime?,
+      updatedAt: fields[11] as DateTime?,
     );
   }
 
@@ -37,29 +37,29 @@ class PatientAdapter extends TypeAdapter<Patient> {
     writer
       ..writeByte(12)
       ..writeByte(0)
-      ..write(obj.fullName)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.birthDate)
+      ..write(obj.ismi)
       ..writeByte(2)
-      ..write(obj.phoneNumber)
+      ..write(obj.tugilganSana)
       ..writeByte(3)
-      ..write(obj.firstVisitDate)
+      ..write(obj.telefonRaqami)
       ..writeByte(4)
-      ..write(obj.complaint)
+      ..write(obj.birinchiKelganSana)
       ..writeByte(5)
-      ..write(obj.speaksRussian)
+      ..write(obj.shikoyat)
       ..writeByte(6)
-      ..write(obj.speaksEnglish)
+      ..write(obj.manzil)
       ..writeByte(7)
-      ..write(obj.speaksUzbek)
+      ..write(obj.rasmManzili)
       ..writeByte(8)
-      ..write(obj.address)
+      ..write(obj.rasmlarManzillari)
       ..writeByte(9)
-      ..write(obj.imagePath)
+      ..write(obj.tashrifSanalari)
       ..writeByte(10)
-      ..write(obj.imagePaths)
+      ..write(obj.createdAt)
       ..writeByte(11)
-      ..write(obj.visitDates);
+      ..write(obj.updatedAt);
   }
 
   @override

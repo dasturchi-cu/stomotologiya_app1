@@ -25,15 +25,15 @@ class PatientList extends StatelessWidget {
                 leading: CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
                   child: Text(
-                    (patient.fullName.isNotEmpty ? patient.fullName[0] : '?').toUpperCase(),
+                    (patient.ismi.isNotEmpty ? patient.ismi[0] : '?').toUpperCase(),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                title: Text(patient.fullName),
-                subtitle: Text('Telefon: ${patient.phoneNumber}'),
+                title: Text(patient.ismi),
+                subtitle: Text('Telefon: ${patient.telefonRaqami}'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.pushNamed(

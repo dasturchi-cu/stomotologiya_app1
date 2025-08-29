@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/patient.dart';
 
 class ExportService {
@@ -16,17 +16,25 @@ class ExportService {
   // Export patients data to Excel file
   static Future<String?> exportPatientsToExcel(BuildContext context) async {
     try {
-      // Android 10+ uchun ilovaning ichki hujjatlar papkasiga yozamiz (ruxsat talab qilinmaydi)
+      // Get patients from Supabase
+      final response = await Supabase.instance.client
+          .from(Patient.tableName)
+          .select()
+          .order('created_at', ascending: false);
 
-      final patientsBox = Hive.box<Patient>('patients');
-      final patients = patientsBox.values.toList();
-
-      if (patients.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Eksport qilish uchun bemorlar mavjud emas.")),
-        );
+      if (response.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text("Eksport qilish uchun bemorlar mavjud emas.")),
+          );
+        }
         return null;
       }
+
+      final patients = (response as List)
+          .map((json) => Patient.fromJson(json))
+          .toList();
 
       final excel = Excel.createExcel();
       final sheet = excel['Patients'];
@@ -61,22 +69,22 @@ class ExportService {
             .value = TextCellValue((i + 1).toString());
         sheet
             .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
-            .value = TextCellValue(patient.fullName);
+            .value = TextCellValue(patient.ismi);
         sheet
             .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
-            .value = TextCellValue(_formatDate(patient.birthDate));
+            .value = TextCellValue(_formatDate(patient.tugilganSana));
         sheet
             .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
-            .value = TextCellValue(patient.phoneNumber);
+            .value = TextCellValue(patient.telefonRaqami);
         sheet
             .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
-            .value = TextCellValue(_formatDate(patient.firstVisitDate));
+            .value = TextCellValue(_formatDate(patient.birinchiKelganSana));
         sheet
             .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
-            .value = TextCellValue(patient.complaint);
+            .value = TextCellValue(patient.shikoyat);
         sheet
             .cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row))
-            .value = TextCellValue(patient.address);
+            .value = TextCellValue(patient.manzil);
       }
 
       for (var i = 0; i < headers.length; i++) {
@@ -86,21 +94,33 @@ class ExportService {
       final directory = await getApplicationDocumentsDirectory();
       final now = DateTime.now();
       final formattedDate = DateFormat('yyyy-MM-dd_HH-mm').format(now);
-      final filePath =
-          '${directory.path}/bemor_malumotlari_$formattedDate.xlsx';
+      final fileName = 'bemor_malumotlari_$formattedDate.xlsx';
+      final filePath = '${directory.path}/$fileName';
       final file = File(filePath);
       final fileBytes = excel.encode();
 
-      if (fileBytes != null) {
-        await file.writeAsBytes(fileBytes);
-        return filePath;
-      } else {
+      if (fileBytes == null) {
         throw Exception("Excel faylni kodlashda xatolik");
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Xatolik yuz berdi: $e")),
-      );
+
+      await file.writeAsBytes(fileBytes);
+      
+      // Share the file
+      if (context.mounted) {
+        await Share.shareXFiles([XFile(filePath)], text: 'Bemorlar ro\'yxati');
+      }
+      
+      return filePath;
+    } catch (e, stackTrace) {
+      debugPrint('Error exporting to Excel: $e\n$stackTrace');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Xatolik yuz berdi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return null;
     }
   }

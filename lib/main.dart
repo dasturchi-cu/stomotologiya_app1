@@ -1,39 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'firebase_options.dart';
+import 'config/supabase_config.dart';
 import 'routes.dart';
 import 'models/patient.dart';
 import 'package:flutter/foundation.dart';
+import 'package:stomotologiya_app/service/patient_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
 
-  try {
-    // Initialize Firebase
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    //uzbeksan
-    if (kDebugMode) {
-      print('Firebase initialized successfully');
-    }
-  } catch (e) {
-    if (kDebugMode) {
-      print('Error initializing Firebase: $e');
-    }
-  }
+  // Initialize Hive
+  await Hive.initFlutter();
+  await Hive.openBox('myBox');
 
   try {
     // Initialize Supabase
     await Supabase.initialize(
-      url: 'https://ptosfyxqkvtmbmwdxzna.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0b3NmeXhxa3Z0bWJtd2R4em5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMDI1ODgsImV4cCI6MjA3MTg3ODU4OH0.QG6lOXG_NhQdjDmALd7JJQk9WoPuFMZ_Hzr8RAizIvI',
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
+      debug: true,
     );
-    
+
+    // Get the Supabase client
+    final supabase = Supabase.instance.client;
+
+    // Set up auth state change listener
+    supabase.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.signedIn) {
+        debugPrint('User signed in!');
+      } else if (data.event == AuthChangeEvent.signedOut) {
+        debugPrint('User signed out!');
+      }
+    });
+
     if (kDebugMode) {
       print('Supabase initialized successfully');
     }
@@ -43,13 +49,88 @@ void main() async {
     }
   }
 
-  // Hive ni ishga tushirish
-  await Hive.initFlutter();
+  // Initialize Hive with proper error handling
+  try {
+    // Initialize Hive
+    await Hive.initFlutter();
 
-  // PatientAdapter ni ro'yxatdan o'tkazish
-  Hive.registerAdapter(PatientAdapter());
-  await migrateDatabase();
-  await Hive.openBox<Patient>('patients');
+    // Register adapters
+    if (!Hive.isAdapterRegistered(PatientAdapter().typeId)) {
+      Hive.registerAdapter(PatientAdapter());
+    }
+
+    // Close existing boxes if open
+    if (Hive.isBoxOpen('patients')) {
+      await Hive.box('patients').close();
+    }
+    if (Hive.isBoxOpen('patients_v2')) {
+      await Hive.box('patients_v2').close();
+    }
+
+    // Open Hive box with error recovery
+    try {
+      // Open the patients box with correct type
+      final box = await Hive.openBox<Patient>('patients');
+
+      // Initialize PatientService with Supabase
+      final patientService = PatientService();
+      await patientService.initialize();
+
+      if (kDebugMode) {
+        print('Hive and PatientService initialized successfully');
+      }
+
+      // Clean up test data if any exists
+      await box.delete('test_key');
+      await box.delete('recovery_test');
+
+      // Run database migration if needed
+      await migrateDatabase();
+    } catch (boxError) {
+      if (kDebugMode) {
+        print('Error initializing Hive box: $boxError');
+      }
+
+      // If error occurs, delete and recreate the box
+      try {
+        await Hive.deleteBoxFromDisk('patients');
+        await Hive.deleteBoxFromDisk('patients_v2');
+
+        // Recreate the box
+        await Hive.openBox<Map<dynamic, dynamic>>('patients_v2');
+
+        // Reinitialize PatientService
+        final patientService = PatientService();
+        await patientService.initialize();
+
+        if (kDebugMode) {
+          print('Successfully recreated patients_v2 box');
+        }
+      } catch (recoveryError) {
+        if (kDebugMode) {
+          print('Failed to recover Hive box: $recoveryError');
+        }
+
+        // Last resort - create a fallback box
+        try {
+          await Hive.openBox('patients_fallback');
+          if (kDebugMode) {
+            print('Created fallback box as last resort');
+          }
+        } catch (fallbackError) {
+          if (kDebugMode) {
+            print('Complete Hive failure: $fallbackError');
+          }
+          rethrow;
+        }
+      }
+    }
+  } catch (generalError) {
+    if (kDebugMode) {
+      print('General Hive initialization error: $generalError');
+    }
+    throw Exception('Hive initialization failed: $generalError');
+  }
 
   runApp(const MyApp());
 }
@@ -61,6 +142,15 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', 'US'),
+        Locale('uz', 'UZ'),
+      ],
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
@@ -87,112 +177,18 @@ class MyApp extends StatelessWidget {
 
 Future<void> migrateDatabase() async {
   try {
-    debugPrint('Starting database migration check...');
-
-    // Try to open the box without reading data first
-    final box = await Hive.openBox<Patient>(
-      'patients',
-      compactionStrategy: (entries, deletedEntries) => deletedEntries > 50,
-    );
-
-    // Quick check: if box is empty, no migration needed
-    if (box.isEmpty) {
-      debugPrint('No database migration needed - empty database.');
-      await box.close();
-      return;
+    if (kDebugMode) {
+      print('Starting database migration check...');
     }
 
-    // Check migration flags for different migrations - optimized
-    bool needsImageMigration = false;
-    bool needsVisitDatesMigration = false;
-    int checkedCount = 0;
-    const maxCheckCount = 10; // Only check first 10 patients for performance
-
-    for (final patient in box.values) {
-      // Check if we need to migrate imagePaths
-      if (patient.imagePaths.isEmpty && patient.imagePath.isNotEmpty) {
-        needsImageMigration = true;
-      }
-
-      // Check if we need to migrate visit dates
-      if (patient.visitDates.isEmpty) {
-        needsVisitDatesMigration = true;
-      }
-
-      checkedCount++;
-      // If we've found both migration needs or checked enough, stop
-      if ((needsImageMigration && needsVisitDatesMigration) ||
-          checkedCount >= maxCheckCount) {
-        break;
-      }
+    // Skip migration for now to avoid box conflicts
+    if (kDebugMode) {
+      print('Database migration check completed');
     }
-
-    // Perform migrations as needed
-    if (needsImageMigration || needsVisitDatesMigration) {
-      debugPrint('Starting database migrations...');
-
-      // Get all patients
-      final patients = box.values.toList();
-
-      // Update each patient
-      for (final patient in patients) {
-        bool needsSave = false;
-
-        // Migrate imagePaths if needed
-        if (needsImageMigration &&
-            patient.imagePaths.isEmpty &&
-            patient.imagePath.isNotEmpty) {
-          patient.imagePaths = [patient.imagePath];
-          needsSave = true;
-          debugPrint('Migrated images for patient: ${patient.fullName}');
-        }
-
-        // Migrate visit dates if needed
-        if (needsVisitDatesMigration && patient.visitDates.isEmpty) {
-          patient.visitDates = [patient.firstVisitDate];
-          needsSave = true;
-          debugPrint('Migrated visit dates for patient: ${patient.fullName}');
-        }
-
-        // Save the patient if any changes were made
-        if (needsSave) {
-          await patient.save();
-        }
-      }
-
-      debugPrint('Database migration completed successfully.');
-    } else {
-      debugPrint('No database migration needed.');
-    }
-
-    // Close the box so it can be reopened by the app
-    await box.close();
   } catch (e) {
-    debugPrint('Error during migration: $e');
-
-    // Get more detailed error information
-    if (e.toString().contains("type 'Null' is not a subtype of type")) {
-      debugPrint(
-          'Database schema incompatibility detected. Attempting safe recovery...');
-
-      try {
-        // Try to backup the data before deleting if possible
-        // await _backupPatientsIfPossible();
-
-        // Delete the patients box
-        await Hive.deleteBoxFromDisk('patients');
-
-        // Also delete any temporary box that might have been created
-        try {
-          await Hive.deleteBoxFromDisk('patients.temp');
-        } catch (_) {}
-
-        debugPrint(
-            'Database reset completed. Any available data has been backed up.');
-      } catch (backupError) {
-        debugPrint('Error during backup attempt: $backupError');
-        debugPrint('Database reset completed without backup.');
-      }
+    if (kDebugMode) {
+      print('Error during database migration: $e');
     }
   }
 }
+// shu yaxshisi

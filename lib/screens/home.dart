@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
+import 'package:stomotologiya_app/models/app_user.dart';
 import 'package:stomotologiya_app/routes.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/patient.dart';
-import '../service/auth_service.dart';
-import '../service/firebase_service.dart';
+import '../service/patient_service.dart';
+import '../service/supabase_auth_servise.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,19 +19,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  var box = Hive.box<Patient>('patients');
+  final _patientService = PatientService();
+  final _searchController = TextEditingController();
   final _authService = AuthService();
-  final _firebaseService = FirebaseService();
+  AppUser? get user => _authService.currentUser;
   
-  // For storing patients from Firestore
+  // State variables
+  late final Box<Patient> box;
   List<Patient> _patients = [];
-  
-  // Debounce timer for search
+  String _searchQuery = '';
   Timer? _searchDebounceTimer;
-  
-  // Loading state
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -36,18 +36,17 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    _loadPatients();
+    _initializeHive();
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
     super.dispose();
   }
-  
-  // Load patients from Firestore
+
+  // Load patients from Supabase
   Future<void> _loadPatients() async {
     if (mounted) {
       setState(() {
@@ -57,7 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      _firebaseService.getPatients().listen((patients) {
+      // Initialize PatientService
+      await _patientService.initialize();
+      
+      // Listen to patients stream from Supabase
+      _patientService.getPatients().listen((patients) {
         if (mounted) {
           setState(() {
             _patients = patients;
@@ -65,6 +68,13 @@ class _HomeScreenState extends State<HomeScreen> {
           });
           // Update local cache
           _updateLocalCache(patients);
+        }
+      }, onError: (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Bemorni yuklashda xatolik: $error';
+            _isLoading = false;
+          });
         }
       });
     } catch (e) {
@@ -74,11 +84,11 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoading = false;
         });
       }
-      debugPrint('Error loading patients: $e');
+      debugPrint('Bemorni yuklashda xatolik: $e');
     }
   }
-  
-  // Update local Hive database with fresh data from Firestore
+
+  // Update local Hive database with fresh data from Supabase
   Future<void> _updateLocalCache(List<Patient> patients) async {
     try {
       await box.clear();
@@ -103,17 +113,17 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-  
+
   // Filter patients based on search query
   List<Patient> get _filteredPatients {
     if (_searchQuery.isEmpty) return _patients;
-    
+
     final query = _searchQuery.toLowerCase();
     return _patients.where((patient) {
-      return patient.fullName.toLowerCase().contains(query) ||
-          patient.phoneNumber.contains(query) ||
-          patient.complaint.toLowerCase().contains(query) ||
-          (patient.address?.toLowerCase().contains(query) ?? false);
+      return patient.ismi.toLowerCase().contains(query) ||
+          patient.telefonRaqami.contains(query) ||
+          (patient.shikoyat != null && patient.shikoyat!.toLowerCase().contains(query)) ||
+          (patient.manzil != null && patient.manzil!.toLowerCase().contains(query));
     }).toList();
   }
 
@@ -124,270 +134,545 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Simulate a small delay for refresh animation
     await Future.delayed(const Duration(milliseconds: 300));
-
-    setState(() {
-      _isLoading = false;
-    });
+    
+    // Reload patients
+    await _loadPatients();
   }
 
-  void _clearCache() {}
-
-  List<Patient> _getFilteredPatients() {
-    if (_searchQuery.isEmpty) {
-      return box.values.toList();
+  Future<void> _clearCache() async {
+    try {
+      await box.clear();
+      await _loadPatients();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Xotirani tozalashda xatolik: $e')),
+        );
+      }
     }
-    final query = _searchQuery.toLowerCase();
-    return box.values.where((patient) {
-      final fullNameLower = patient.fullName.toLowerCase();
-      final phoneNumber = patient.phoneNumber;
-      final complaintLower = patient.complaint.toLowerCase();
-      return fullNameLower.contains(query) ||
-          phoneNumber.contains(_searchQuery) ||
-          complaintLower.contains(query);
-    }).toList();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      drawer: _buildDrawer(),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        centerTitle: false,
-        title: Text(
-          'Bemorlar Ro\'yxati',
-          style: TextStyle(
-            color: Colors.blue[800],
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.file_download, color: Colors.blue[800]),
-            tooltip: 'Excel formatiga eksport',
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.export),
-          ),
-          IconButton(
-            icon: Icon(Icons.analytics_outlined, color: Colors.blue[800]),
-            tooltip: 'Statistika',
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.analytics);
-            },
-          ),
-          // IconButton(
-          //   icon: Icon(Icons.settings_outlined, color: Colors.blue[800]),
-          //   tooltip: 'Sozlamalar',
-          //   onPressed: () {
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(builder: (_) => const SettingsScreen()),
-          //     );
-          //   },
-          // ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar with filter options
-          Container(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
-            color: Colors.white,
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Bemor ismini qidirish...',
-                    prefixIcon: Icon(Icons.search, color: Colors.blue[800]),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-                SizedBox(height: 12),
-                // SingleChildScrollView(
-                //   scrollDirection: Axis.horizontal,
-                //   child: Row(
-                //     children: [
-                //       _filterChip(label: 'Bugun', isSelected: false),
-                //       _filterChip(label: 'Ushbu hafta', isSelected: false),
-                //       _filterChip(label: 'A-Z', isSelected: true),
-                //       _filterChip(label: 'Eng yangi', isSelected: false),
-                //       _filterChip(
-                //           label: 'To\'lov qilinmagan', isSelected: false),
-                //     ],
-                //   ),
-                // ),
-              ],
-            ),
-          ),
+  // Get initials from name
+  String _getInitials(String fullName) {
+    if (fullName.isEmpty) return '';
+    return fullName
+        .split(' ')
+        .where((s) => s.isNotEmpty)
+        .map((s) => s[0].toUpperCase())
+        .take(2)
+        .join('');
+  }
 
-          // Patient list with loading and error states
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refreshData,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline, 
-                                  color: Colors.red, size: 48),
-                              const SizedBox(height: 16),
-                              Text(
-                                _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.red),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _loadPatients,
-                                child: const Text('Qayta urinish'),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _patients.isEmpty
-                          ? _buildEmptyState()
-                          : ListView.builder(
-                              itemCount: _filteredPatients.length,
-                              itemBuilder: (context, index) {
-                                final patient = _filteredPatients[index];
-                                return _buildOptimizedPatientCard(
-                                    context, patient, index);
-                              },
-                            ),
+  // Format date to display
+  String _formatDate(DateTime date) {
+    return DateFormat('dd.MM.yyyy').format(date);
+  }
+
+  // Build enhanced info chip widget
+  Widget _buildEnhancedInfoChip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: color.withOpacity(0.8),
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final result =
-              await Navigator.pushNamed(context, AppRoutes.addPatient);
-          // Clear cache when returning from add patient screen
-          if (result == true) {
-            _clearCache();
-          }
-        },
-        backgroundColor: Colors.blue[800],
-        icon: Icon(Icons.person_add_alt_1_rounded),
-        label: Text('Yangi bemor'),
       ),
     );
   }
 
+  // Build info chip widget (kept for compatibility)
+  Widget _buildInfoChip(IconData icon, String label) {
+    return _buildEnhancedInfoChip(icon, label, Colors.grey);
+  }
+
+  // Build empty state widget
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Lottie.asset(
-            'assets/empty.json', // Add this asset to your project
-            width: 180,
-            height: 180,
+            'assets/empty.json',
+            width: 200,
+            height: 200,
             fit: BoxFit.contain,
           ),
-          SizedBox(height: 24),
-          Text(
-            'Sizda hali bemorlar mavjud emas',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
+          const SizedBox(height: 16),
+          const Text(
+            'Bemorlar topilmadi',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          SizedBox(height: 12),
-          Text(
-            'Yangi bemor qo\'shish uchun pastdagi tugmani bosing',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+          const SizedBox(height: 8),
+          const Text(
+            'Yangi bemor qo\'shish uchun quyidagi tugmani bosing',
             textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.addPatient);
-            },
-            icon: Icon(Icons.person_add),
-            label: Text('Yangi bemor qo\'shish'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[800],
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
-  // Optimized patient card with better performance
-  Widget _buildOptimizedPatientCard(
-      BuildContext context, Patient patient, int index) {
-    // Check if patient has recent visit (within last 7 days) - cached calculation
-    final bool hasRecentVisit = patient.visitDates.isNotEmpty &&
-        patient.lastVisitDate
-            .isAfter(DateTime.now().subtract(const Duration(days: 7)));
+  // Build enhanced patient card widget
+  Widget _buildEnhancedPatientCard(
+      BuildContext context, Patient patient, int index,
+      {required bool hasRecentVisit, required DateTime lastVisit}) {
+    final lastVisitFormatted = _formatDate(lastVisit);
+    final initials = _getInitials(patient.ismi);
 
-    return RepaintBoundary(
-      child: Card(
-        key: ValueKey('patient_${patient.key}'),
-        elevation: 2,
-        margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white,
+            Colors.blue[50]!,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                AppRoutes.patientDetails,
-                arguments: patient,
-              );
-            },
-            child: _buildPatientCardContent(patient, hasRecentVisit, index),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.patientDetails,
+              arguments: patient,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Enhanced avatar with gradient
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.blue[400]!,
+                        Colors.blue[600]!,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        spreadRadius: 1,
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              patient.ismi,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 17,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          if (hasRecentVisit)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.green[400]!,
+                                    Colors.green[600]!,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'Yaqinda',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.phone_rounded, 
+                               size: 16, 
+                               color: Colors.blue[600]),
+                          const SizedBox(width: 6),
+                          Text(
+                            patient.telefonRaqami,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _buildEnhancedInfoChip(
+                            Icons.calendar_today_rounded,
+                            'So\'nggi: $lastVisitFormatted',
+                            Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          if (patient.shikoyat?.isNotEmpty ?? false)
+                            Expanded(
+                              child: _buildEnhancedInfoChip(
+                                Icons.medical_services_rounded,
+                                patient.shikoyat!,
+                                Colors.red,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.edit_rounded, 
+                                color: Colors.blue[600],
+                                size: 22),
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.patientEdit,
+                          arguments: patient,
+                        ).then((_) => _loadPatients());
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_rounded, 
+                                color: Colors.red[400],
+                                size: 22),
+                      onPressed: () => _showDeleteConfirmation(context, patient, index),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  // Show delete confirmation dialog
+  void _showDeleteConfirmation(
+      BuildContext context, Patient patient, int index) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Bemorni o\'chirish'),
+          content: Text(
+              '${patient.ismi} ismli bemorni ro\'yxatdan o\'chirishni istaysizmi?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Bekor qilish'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                try {
+                  await _patientService.deletePatient(patient.id!);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            '${patient.ismi} muvaffaqiyatli o\'chirildi'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Xatolik yuz berdi: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('O\'chirish', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.blue[600],
+        foregroundColor: Colors.white,
+        title: const Text(
+          'Bemorlar Ro\'yxati',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            onPressed: () {
+              Navigator.pushNamed(context, AppRoutes.analytics);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshData,
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'clear_cache') {
+                _clearCache();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'clear_cache',
+                child: Row(
+                  children: [
+                    Icon(Icons.clear_all),
+                    SizedBox(width: 8),
+                    Text('Keshni tozalash'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue[600],
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Bemor qidirish...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(25),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
+          // Patient count info
+          if (_patients.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Jami bemorlar: ${_patients.length}',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          // Main content
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Ma\'lumotlar yuklanmoqda...'),
+                      ],
+                    ),
+                  )
+                : _errorMessage != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _refreshData,
+                              child: const Text('Qayta urinish'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _filteredPatients.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _refreshData,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: _filteredPatients.length,
+                              itemBuilder: (context, index) {
+                                final patient = _filteredPatients[index];
+                                final hasVisitDates = patient.tashrifSanalari.isNotEmpty;
+                                final lastVisit = hasVisitDates
+                                    ? DateTime.parse(patient.tashrifSanalari.last)
+                                    : patient.birinchiKelganSana;
+                                final hasRecentVisit = hasVisitDates &&
+                                    lastVisit.isAfter(DateTime.now()
+                                        .subtract(const Duration(days: 7)));
+
+                                return _buildEnhancedPatientCard(
+                                  context,
+                                  patient,
+                                  index,
+                                  hasRecentVisit: hasRecentVisit,
+                                  lastVisit: lastVisit,
+                                );
+                              },
+                            ),
+                          ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.pushNamed(context, AppRoutes.addPatient).then((_) {
+            _loadPatients();
+          });
+        },
+        backgroundColor: Colors.blue[600],
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.person_add),
+        label: const Text(
+          'Yangi bemor',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _initializeHive() async {
+    try {
+      if (!Hive.isBoxOpen('patients')) {
+        box = await Hive.openBox<Patient>('patients');
+      } else {
+        box = Hive.box<Patient>('patients');
+      }
+      _loadPatients();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error initializing Hive box: $e');
+      }
+      setState(() {
+        _errorMessage = 'Ma\'lumotlar bazasida xatolik yuz berdi';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Build patient card content
   Widget _buildPatientCardContent(
-      Patient patient, bool hasRecentVisit, int index) {
-    // Pre-calculate values to avoid repeated computations
-    final initials = _getInitials(patient.fullName);
-    final lastVisitFormatted = _formatDate(patient.lastVisitDate);
+      Patient patient, bool hasRecentVisit, DateTime lastVisit, int index) {
+    final initials = _getInitials(patient.ismi);
+    final lastVisitFormatted = _formatDate(lastVisit);
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          // Patient avatar or initials - optimized with const where possible
+          // Patient avatar with initials
           CircleAvatar(
             radius: 24,
             backgroundColor: Colors.blue[100],
@@ -410,17 +695,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        patient.fullName,
+                        patient.ismi,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (hasRecentVisit) ...[
-                      const SizedBox(width: 8),
+                    if (hasRecentVisit)
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
@@ -436,324 +718,44 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.phone, size: 14, color: Colors.grey[600]),
+                    Icon(Icons.phone, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        patient.phoneNumber,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Text(
+                      patient.telefonRaqami,
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Optimized metadata row with fixed height
-                SizedBox(
-                  height: 30,
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: _buildInfoChip(Icons.calendar_today,
-                            'So\'nggi: $lastVisitFormatted'),
+                Row(
+                  children: [
+                    _buildInfoChip(
+                      Icons.calendar_today,
+                      'So\'nggi: $lastVisitFormatted',
+                    ),
+                    const SizedBox(width: 8),
+                    if (patient.shikoyat.isNotEmpty)
+                      _buildInfoChip(
+                        Icons.medical_services,
+                        patient.shikoyat,
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: _buildInfoChip(
-                            Icons.medical_services, patient.complaint),
-                      ),
-                    ],
-                  ),
-                )
+                  ],
+                ),
               ],
             ),
           ),
-          // Actions (edit removed by request)
           IconButton(
             icon: Icon(Icons.delete_outline, color: Colors.red[400]),
-            tooltip: 'O\'chirish',
-            onPressed: () {
-              _showDeleteConfirmation(context, patient, index);
-            },
+            onPressed: () => _showDeleteConfirmation(context, patient, index),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: Colors.grey[700]),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[700],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawer() {
-    final user = _authService.currentUser;
-
-    return Drawer(
-      backgroundColor: Colors.grey[50],
-      child: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Container(
-              margin: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.blue[700]!,
-                    Colors.blue[400]!,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.25),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    child: const Icon(
-                      Icons.medical_services,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'StomoTrack',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.3,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          user?.displayName?.isNotEmpty == true
-                              ? user!.displayName!
-                              : 'Bemorlar boshqaruvi',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 13,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _buildDrawerItem(
-                context,
-                icon: Icons.home_rounded,
-                label: 'Bosh sahifa',
-                onTap: () => Navigator.pop(context),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _buildDrawerItem(
-                context,
-                icon: Icons.analytics_rounded,
-                label: 'Statistika',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, AppRoutes.analytics);
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _buildDrawerItem(
-                context,
-                icon: Icons.file_download_rounded,
-                label: 'Eksport',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, AppRoutes.export);
-                },
-              ),
-            ),
-
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.grey[300]!, height: 1)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Logout (hozircha yashirilgan)
-            // Padding(
-            //   padding: const EdgeInsets.symmetric(horizontal: 12),
-            //   child: _buildDrawerItem(
-            //     context,
-            //     icon: Icons.logout_rounded,
-            //     label: 'Tizimdan chiqish',
-            //     iconColor: Colors.red,
-            //     textColor: Colors.red,
-            //     onTap: () => _showLogoutDialog(),
-            //   ),
-            // ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    Color? iconColor,
-    Color? textColor,
-    required VoidCallback onTap,
-  }) {
-    final baseIconColor = iconColor ?? Colors.blueGrey[700];
-    final baseTextColor = textColor ?? Colors.blueGrey[900];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: baseIconColor),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: baseTextColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final formatter = DateFormat('dd.MM.yyyy');
-    return formatter.format(date);
-  }
-
-  String _getInitials(String fullName) {
-    if (fullName.isEmpty) return '';
-
-    List<String> names = fullName.split(' ');
-    String initials = '';
-
-    for (var name in names) {
-      if (name.isNotEmpty) {
-        initials += name[0].toUpperCase();
-
-        if (initials.length >= 2) break;
-      }
-    }
-
-    return initials;
-  }
-
-  void _showDeleteConfirmation(
-      BuildContext context, Patient patient, int index) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Bemorni o\'chirish'),
-        content: Text(
-            'Haqiqatan ham ${patient.fullName} ma\'lumotlarini o\'chirishni xohlaysizmi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Bekor qilish'),
-          ),
-          TextButton(
-            onPressed: () {
-              // Delete patient logic
-              patient
-                  .delete(); // Use patient.delete() instead of box.deleteAt(index) for better performance
-              Navigator.pop(context);
-
-              // Clear cache after deletion
-              _clearCache();
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${patient.fullName} o\'chirildi'),
-                ),
-              );
-            },
-            child: Text(
-              'O\'chirish',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

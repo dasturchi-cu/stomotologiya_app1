@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:stomotologiya_app/payment/payment.dart';
-import '../service/auth_service.dart';
+import '../service/supabase_auth_servise.dart';
 import '../models/app_user.dart';
 import '../models/user_status.dart';
 import 'auth/login_screen.dart';

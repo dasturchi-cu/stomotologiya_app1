@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../service/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../service/supabase_storage_service.dart';
 import '../../routes.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -13,11 +14,19 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _storageService = SupabaseStorageService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isLogin = true;
   String? _errorMessage;
+
+  void _toggleAuthMode() {
+    setState(() {
+      _isLogin = !_isLogin;
+      _errorMessage = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -26,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -35,17 +44,28 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _authService.signInWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-      // Navigatsiya AppWrapper orqali boshqariladi
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-        });
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      if (_isLogin) {
+        // Sign in
+        await _storageService.signInWithEmail(email, password);
+      } else {
+        // Sign up
+        await _storageService.signUpWithEmail(email, password);
       }
+
+      if (mounted) {
+Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      }
+    } on AuthException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Xatolik yuz berdi: $e';
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -55,29 +75,29 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  // Future<void> _signInWithGoogle() async {
+  //   setState(() {
+  //     _isLoading = true;
+  //     _errorMessage = null;
+  //   });
 
-    try {
-      await _authService.signInWithGoogle();
-      // Navigatsiya AppWrapper orqali boshqariladi
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  //   try {
+  //     // TODO: Implement Google Sign In with Supabase
+  //     // await _supabase.auth.signInWithOAuth(Provider.google);
+  //   } catch (e) {
+  //     if (mounted) {
+  //       setState(() {
+  //         _errorMessage = e.toString();
+  //       });
+  //     }
+  //   } finally {
+  //     if (mounted) {
+  //       setState(() {
+  //         _isLoading = false;
+  //       });
+  //     }
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -92,31 +112,22 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-                Icon(
+                const Icon(
                   Icons.medical_services,
                   size: 80,
-                  color: Colors.blue[800],
+                  color: Colors.blue,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Stomatologiya Dasturi',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[700],
+                  ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  'StomoTrack',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue[800],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Stomatologiya klinikasi uchun',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 48),
                 if (_errorMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -128,28 +139,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(color: Colors.red[700]),
+                      style: const TextStyle(color: Colors.red),
                       textAlign: TextAlign.center,
                     ),
                   ),
                 TextFormField(
                   controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
+                  decoration: const InputDecoration(
+                    labelText: 'Elektron pochta',
+                    prefixIcon: Icon(Icons.email),
+                    border: OutlineInputBorder(),
                   ),
+                  keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Email kiriting';
+                      return 'Iltimos, elektron pochtangizni kiriting';
                     }
                     if (!value.contains('@')) {
-                      return 'To\'g\'ri email kiriting';
+                      return 'Iltimos, to\'g\'ri elektron pochta kiriting';
                     }
                     return null;
                   },
@@ -157,15 +164,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     labelText: 'Parol',
-                    prefixIcon: const Icon(Icons.lock_outlined),
+                    prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -173,109 +179,57 @@ class _LoginScreenState extends State<LoginScreen> {
                         });
                       },
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
+                    border: const OutlineInputBorder(),
                   ),
+                  obscureText: _obscurePassword,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Parol kiriting';
+                      return 'Iltimos, parolni kiriting';
                     }
                     if (value.length < 6) {
-                      return 'Parol kamida 6 ta belgi bo\'lishi kerak';
+                      return 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
+                  onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[800],
-                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    elevation: 2,
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
+                          width: 24,
+                          height: 24,
                           child: CircularProgressIndicator(
+                            color: Colors.white,
                             strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'KIRISH',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      : Text(_isLogin ? 'KIRISH' : 'RO\'YXATDAN O\'TISH'),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: Divider(color: Colors.grey[400])),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'YOKI',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    Expanded(child: Divider(color: Colors.grey[400])),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _signInWithGoogle,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    side: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  icon: Icon(
-                    Icons.account_circle,
-                    color: Colors.red[600],
-                    size: 20,
-                  ),
-                  label: Text(
-                    'Google bilan kirish',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Hisobingiz yo\'qmi? ',
+                      _isLogin 
+                          ? 'Hisobingiz yo\'qmi? ' 
+                          : 'Allaqachon hisobingiz bormi? ',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                     TextButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.register);
-                      },
+                      onPressed: _isLoading ? null : _toggleAuthMode,
                       child: Text(
-                        'Ro\'yxatdan o\'ting',
-                        style: TextStyle(
-                          color: Colors.blue[800],
+                        _isLogin 
+                            ? 'Ro\'yxatdan o\'tish'
+                            : 'Tizimga kirish',
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                         ),
                       ),

@@ -1,6 +1,27 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Xatolik xabari turlari
+enum MessageType {
+  success,
+  error,
+  warning,
+  info,
+}
+
+/// Xabar modeli
+class UserMessage {
+  final String message;
+  final MessageType type;
+  final DateTime timestamp;
+
+  UserMessage({
+    required this.message,
+    required this.type,
+    required this.timestamp,
+  });
+}
 
 /// Xatoliklarni boshqarish va foydalanuvchiga xabar berish service
 class ErrorHandler {
@@ -15,137 +36,120 @@ class ErrorHandler {
   // Stream
   Stream<UserMessage> get messageStream => _messageController.stream;
 
-  /// Firebase Auth xatoliklarini boshqarish
-  String handleFirebaseAuthError(FirebaseAuthException e) {
-    String message;
-
-    switch (e.code) {
-      case 'user-not-found':
-        message = 'Bunday email bilan foydalanuvchi topilmadi.';
-        break;
-      case 'wrong-password':
-        message = 'Noto\'g\'ri parol kiritildi.';
-        break;
-      case 'email-already-in-use':
-        message = 'Bu email allaqachon ishlatilmoqda.';
-        break;
-      case 'weak-password':
-        message = 'Parol juda zaif. Kamida 6 ta belgi kiriting.';
-        break;
-      case 'invalid-email':
-        message = 'Noto\'g\'ri email formati.';
-        break;
-      case 'user-disabled':
-        message = 'Sizning hisobingiz o\'chirilgan. To\'lov qiling.';
-        break;
-      case 'too-many-requests':
-        message = 'Juda ko\'p urinish. Biroz kutib qayta urinib ko\'ring.';
-        break;
-      case 'operation-not-allowed':
-        message = 'Bu operatsiya ruxsat etilmagan.';
-        break;
-      case 'invalid-credential':
-        message = 'Noto\'g\'ri ma\'lumotlar kiritildi.';
-        break;
-      case 'account-exists-with-different-credential':
-        message = 'Bu email boshqa usul bilan ro\'yxatdan o\'tgan.';
-        break;
-      case 'requires-recent-login':
-        message = 'Bu operatsiya uchun qayta tizimga kirish talab qilinadi.';
-        break;
-      case 'network-request-failed':
-        message = 'Internet aloqasi yo\'q. Ulanishni tekshiring.';
-        break;
-      default:
-        message = 'Xatolik yuz berdi: ${e.message ?? "Noma'lum xatolik"}';
-    }
-
-    _logError('FirebaseAuth', e.code, e.message ?? '');
-    return message;
-  }
-
-  /// Firestore xatoliklarini boshqarish
-  String handleFirestoreError(FirebaseException e) {
-    String message;
-
-    switch (e.code) {
-      case 'permission-denied':
-        message = 'Sizda bu operatsiya uchun ruxsat yo\'q.';
-        break;
-      case 'unavailable':
-        message = 'Server vaqtincha ishlamayapti. Qayta urinib ko\'ring.';
-        break;
-      case 'deadline-exceeded':
-        message = 'So\'rov vaqti tugadi. Qayta urinib ko\'ring.';
-        break;
-      case 'not-found':
-        message = 'So\'ralgan ma\'lumot topilmadi.';
-        break;
-      case 'already-exists':
-        message = 'Bu ma\'lumot allaqachon mavjud.';
-        break;
-      case 'resource-exhausted':
-        message = 'Resurs cheklovi oshib ketdi. Keyinroq urinib ko\'ring.';
-        break;
-      case 'failed-precondition':
-        message = 'Operatsiya uchun shart bajarilmagan.';
-        break;
-      case 'aborted':
-        message = 'Operatsiya bekor qilindi. Qayta urinib ko\'ring.';
-        break;
-      case 'out-of-range':
-        message = 'Noto\'g\'ri qiymat kiritildi.';
-        break;
-      case 'unimplemented':
-        message = 'Bu funksiya hali ishlamaydi.';
-        break;
-      case 'internal':
-        message = 'Ichki server xatoligi. Qayta urinib ko\'ring.';
-        break;
-      case 'data-loss':
-        message = 'Ma\'lumotlar yo\'qoldi. Qayta urinib ko\'ring.';
-        break;
-      default:
-        message =
-            'Ma\'lumotlar bazasi xatoligi: ${e.message ?? "Noma'lum xatolik"}';
-    }
-
-    _logError('Firestore', e.code, e.message ?? '');
-    return message;
-  }
-
-  /// Umumiy xatoliklarni boshqarish
-  String handleGeneralError(dynamic error) {
-    String message;
-
-    if (error is FirebaseAuthException) {
-      return handleFirebaseAuthError(error);
-    } else if (error is FirebaseException) {
-      return handleFirestoreError(error);
-    } else if (error is TimeoutException) {
-      message = 'So\'rov vaqti tugadi. Internet aloqasini tekshiring.';
-    } else if (error is FormatException) {
-      message = 'Noto\'g\'ri ma\'lumot formati.';
-    } else if (error.toString().contains('SocketException')) {
-      message = 'Internet aloqasi yo\'q. Ulanishni tekshiring.';
-    } else if (error.toString().contains('HandshakeException')) {
-      message = 'Xavfsiz ulanish o\'rnatilmadi. Qayta urinib ko\'ring.';
+  /// Handle Supabase Auth errors
+  static String handleAuthError(dynamic error) {
+    if (error is AuthException) {
+      return _handleSupabaseAuthError(error);
+    } else if (error is PostgrestException) {
+      return _handlePostgrestError(error);
+    } else if (error is String) {
+      return error;
+    } else if (error is Error) {
+      return error.toString();
     } else {
-      message = 'Kutilmagan xatolik yuz berdi. Qayta urinib ko\'ring.';
+      return 'Noma\'lum xatolik yuz berdi: ${error.toString()}';
+    }
+  }
+
+  /// Handle Supabase Auth specific errors
+  static String _handleSupabaseAuthError(AuthException e) {
+    String message;
+
+    switch (e.statusCode) {
+      case '400':
+        message = 'Noto\'g\'ri so\'rov formati';
+        break;
+      case '401':
+        message = 'Kirish rad etildi. Iltimos, qaytadan kiring';
+        break;
+      case '403':
+        message = 'Ruxsat rad etildi';
+        break;
+      case '404':
+        message = 'Manzil topilmadi';
+        break;
+      case '422':
+        message = 'Tekshirish xatoligi';
+        break;
+      case '500':
+        message = 'Server xatosi';
+        break;
+      default:
+        message = e.message;
     }
 
-    _logError('General', 'unknown', error.toString());
     return message;
   }
 
-  /// Foydalanuvchiga xabar ko'rsatish
+  /// Handle PostgREST errors
+  static String _handlePostgrestError(PostgrestException e) {
+    String message;
+
+    switch (e.code) {
+      case '23505':
+        message = 'Bu ma\'lumot allaqachon mavjud';
+        break;
+      case '23503':
+        message = 'Bog\'liq ma\'lumot topilmadi';
+        break;
+      case '23514':
+        message = 'Ma\'lumotlar bazasi cheklovlari buzilgan';
+        break;
+      case '42P01':
+        message = 'Jadval topilmadi';
+        break;
+      case '42501':
+        message = 'Ruxsat yo\'q';
+        break;
+      default:
+        message = e.message;
+    }
+
+    return message;
+  }
+
+  /// General error handler
+  static void handleError(dynamic error, {StackTrace? stackTrace}) {
+    debugPrint('Error: $error');
+    if (stackTrace != null) {
+      debugPrint('Stack trace: $stackTrace');
+    }
+    
+    String errorMessage = 'Xatolik yuz berdi';
+    
+    if (error is AuthException || error is PostgrestException) {
+      errorMessage = handleAuthError(error);
+    } else if (error is TimeoutException) {
+      errorMessage = 'So\'rov vaqti tugadi. Internet aloqasini tekshiring.';
+    } else if (error is FormatException) {
+      errorMessage = 'Noto\'g\'ri ma\'lumot formati.';
+    } else if (error is String) {
+      errorMessage = error;
+    } else if (error is Error) {
+      errorMessage = error.toString();
+    }
+    
+    _instance._logError('App', error.runtimeType.toString(), error.toString());
+    _instance._showError(errorMessage);
+  }
+
+  /// Xatolik xabarini ko'rsatish
+  void _showError(String message) {
+    final userMessage = UserMessage(
+      message: message,
+      type: MessageType.error,
+      timestamp: DateTime.now(),
+    );
+    _messageController.add(userMessage);
+  }
+
+  /// Xabarlarni ko'rsatish uchun
   void showMessage(String message, {MessageType type = MessageType.info}) {
     final userMessage = UserMessage(
       message: message,
       type: type,
       timestamp: DateTime.now(),
     );
-
     _messageController.add(userMessage);
   }
 
@@ -172,77 +176,13 @@ class ErrorHandler {
   /// Xatolikni log qilish
   void _logError(String source, String code, String message) {
     final timestamp = DateTime.now().toIso8601String();
-    print('[$timestamp] ERROR [$source:$code]: $message');
-
-    // Bu yerda xatoliklarni remote logging service ga yuborish mumkin
-    // Masalan: Crashlytics, Sentry, yoki boshqa logging service
+    debugPrint('[$timestamp] ERROR [$source:$code]: $message');
+    
+    // TODO: Add remote logging service integration (e.g., Sentry, Crashlytics)
   }
 
   /// Service ni tozalash
   void dispose() {
     _messageController.close();
-  }
-}
-
-/// Foydalanuvchi xabari modeli
-class UserMessage {
-  final String message;
-  final MessageType type;
-  final DateTime timestamp;
-
-  const UserMessage({
-    required this.message,
-    required this.type,
-    required this.timestamp,
-  });
-}
-
-/// Xabar turlari
-enum MessageType {
-  success,
-  error,
-  warning,
-  info,
-}
-
-/// MessageType uchun extension
-extension MessageTypeExtension on MessageType {
-  Color get color {
-    switch (this) {
-      case MessageType.success:
-        return Colors.green;
-      case MessageType.error:
-        return Colors.red;
-      case MessageType.warning:
-        return Colors.orange;
-      case MessageType.info:
-        return Colors.blue;
-    }
-  }
-
-  IconData get icon {
-    switch (this) {
-      case MessageType.success:
-        return Icons.check_circle;
-      case MessageType.error:
-        return Icons.error;
-      case MessageType.warning:
-        return Icons.warning;
-      case MessageType.info:
-        return Icons.info;
-    }
-  }
-
-  String get title {
-    switch (this) {
-      case MessageType.success:
-        return 'Muvaffaqiyat';
-      case MessageType.error:
-        return 'Xatolik';
-      case MessageType.warning:
-        return 'Ogohlantirish';
-      case MessageType.info:
-        return 'Ma\'lumot';
-    }
   }
 }

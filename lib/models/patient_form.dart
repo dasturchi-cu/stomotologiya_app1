@@ -1,12 +1,10 @@
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:stomotologiya_app/models/patient.dart';
-import 'package:stomotologiya_app/service/supabase_storage_service.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 class PatientForm extends StatefulWidget {
   const PatientForm({super.key});
@@ -30,69 +28,116 @@ class _PatientFormState extends State<PatientForm> {
   DateTime? firstVisitDate;
   
   final List<File> _images = [];
-  final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Bemorni Ro‘yxatga Olish')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: fullNameController,
-                decoration: InputDecoration(labelText: 'To\'liq ismi'),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.blue[600],
+        foregroundColor: Colors.white,
+        title: const Text(
+          'Yangi Bemor Qo\'shish',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Header section with gradient
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue[600]!, Colors.blue[400]!],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
               ),
-              SizedBox(height: 10),
-              Row(
+              child: const Column(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: birthDateController,
-                      decoration: InputDecoration(labelText: 'Tug‘ilgan sana'),
-                      readOnly: true,
-                    ),
+                  SizedBox(height: 10),
+                  Icon(
+                    Icons.person_add_rounded,
+                    size: 60,
+                    color: Colors.white,
                   ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => _pickBirthDate(context),
-                    child: Text('Tanlash'),
+                  SizedBox(height: 10),
+                  Text(
+                    'Bemor ma\'lumotlarini kiriting',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
-              SizedBox(height: 10),
-              Row(
+            ),
+            // Form section
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: firstVisitDateController,
-                      decoration:
-                          InputDecoration(labelText: 'Birinchi tashrif sanasi'),
-                      readOnly: true,
-                    ),
+                  _buildModernTextField(
+                    controller: fullNameController,
+                    label: 'To\'liq ismi',
+                    icon: Icons.person_rounded,
+                    hint: 'Bemor ismini kiriting',
                   ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => _pickFirstVisitDate(context),
-                    child: Text('Tanlash'),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: birthDateController,
+                          decoration: InputDecoration(labelText: 'Tug‘ilgan sana'),
+                          readOnly: true,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _pickBirthDate(context),
+                        child: Text('Tanlash'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: phoneNumberController,
-                decoration: InputDecoration(labelText: 'Telefon raqami'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: complaintController,
-                decoration: InputDecoration(labelText: 'Shikoyati'),
-              ),
-              SizedBox(height: 10),
+                  SizedBox(height: 10),
+                  _buildDatePickerField(
+                    controller: firstVisitDateController,
+                    label: 'Birinchi tashrif sanasi',
+                    icon: Icons.calendar_today_rounded,
+                    onTap: () => _pickFirstVisitDate(context),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildModernTextField(
+                    controller: phoneNumberController,
+                    label: 'Telefon raqami',
+                    icon: Icons.phone_rounded,
+                    hint: '+998 XX XXX XX XX',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildModernTextField(
+                    controller: complaintController,
+                    label: 'Shikoyati',
+                    icon: Icons.medical_services_rounded,
+                    hint: 'Bemor shikoyatini kiriting',
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 20),
               // Rasm yuklash qismi
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,25 +220,168 @@ class _PatientFormState extends State<PatientForm> {
                   Text('O‘zbek tili'),
                 ],
               ),
-              TextField(
-                controller: addressController,
-                decoration: InputDecoration(labelText: 'Manzil'),
-              ),
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isUploading ? null : _savePatient,
-                child: _isUploading 
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  _buildModernTextField(
+                    controller: addressController,
+                    label: 'Manzil',
+                    icon: Icons.location_on_rounded,
+                    hint: 'Yashash manzilini kiriting',
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 25),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _isUploading ? null : _savePatient,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[600],
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      )
-                    : Text('Saqlash'),
+                      ),
+                      child: _isUploading
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Saqlanmoqda...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.save_rounded),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Bemorni Saqlash',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Modern text field widget
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hint,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: Colors.blue[600]),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
+          labelStyle: TextStyle(
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w500,
+          ),
+          hintStyle: TextStyle(
+            color: Colors.grey[400],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Date picker field widget
+  Widget _buildDatePickerField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        readOnly: true,
+        onTap: onTap,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: Colors.blue[600]),
+          suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.blue[600]),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
+          labelStyle: TextStyle(
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
@@ -237,116 +425,89 @@ class _PatientFormState extends State<PatientForm> {
   Future<void> _savePatient() async {
     // Validate required fields
     if (fullNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Iltimos, bemor ismini kiriting')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Iltimos, bemor ismini kiriting')),
+        );
+      }
       return;
     }
 
     if (phoneNumberController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Iltimos, telefon raqamini kiriting')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Iltimos, telefon raqamini kiriting')),
+        );
+      }
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       _isUploading = true;
     });
 
     try {
-      setState(() {
-        _isUploading = true;
-      });
-
+      debugPrint('Bemor saqlash boshlandi...');
+      
       // Create patient object with all required fields
       final newPatient = Patient(
-        fullName: fullNameController.text.trim(),
-        birthDate: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
-        phoneNumber: phoneNumberController.text.trim(),
-        firstVisitDate: firstVisitDate ?? DateTime.now(),
-        complaint: complaintController.text.trim(),
-        address: addressController.text.trim(),
-        speaksRussian: speaksRussian ? 'Ha' : 'Yo\'q',
-        speaksEnglish: speaksEnglish ? 'Ha' : 'Yo\'q',
-        speaksUzbek: speaksUzbek ? 'Ha' : 'Yo\'q',
-        imagePaths: [],
+        ismi: fullNameController.text.trim(),
+        tugilganSana: birthDate ?? DateTime.now().subtract(const Duration(days: 365 * 30)),
+        telefonRaqami: phoneNumberController.text.trim(),
+        birinchiKelganSana: firstVisitDate ?? DateTime.now(),
+        shikoyat: complaintController.text.trim(),
+        manzil: addressController.text.trim(),
+        rasmlarManzillari: [],
       );
 
-      // Save to Firestore first to get document ID
-      DocumentReference docRef;
-      try {
-        docRef = await newPatient.addToFirestore();
-        newPatient.reference = docRef;
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Firestore-ga saqlashda xatolik: $e')),
-          );
-        }
-        return;
-      }
+      debugPrint('Bemor obyekti yaratildi: ${newPatient.ismi}');
+
+      // Save to Supabase
+      debugPrint('Supabase ga saqlash...');
+      await newPatient.saveToSupabase();
+      debugPrint('Supabase ga saqlandi. ID: ${newPatient.id}');
 
       // Upload images to Supabase Storage if any
       if (_images.isNotEmpty) {
-        final storageService = SupabaseStorageService();
-        final List<String> savedImageUrls = [];
-        
-        for (int i = 0; i < _images.length; i++) {
+        for (final image in _images) {
           try {
-            final imageUrl = await storageService.uploadPatientImage(docRef.id, _images[i]);
-            if (imageUrl != null) {
-              savedImageUrls.add(imageUrl);
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Rasm yuklashda xatolik (${i + 1}/${_images.length})')),
-                );
-              }
-            }
+            final fileName = '${newPatient.id ?? 'temp'}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final bytes = await image.readAsBytes();
+            await Supabase.instance.client.storage
+                .from('patient-images')
+                .uploadBinary(fileName, bytes);
+            
+            final imageUrl = Supabase.instance.client.storage
+                .from('patient-images')
+                .getPublicUrl(fileName);
+            
+            // Update patient with the new image URL
+            newPatient.rasmlarManzillari.add(imageUrl);
+            await newPatient.saveToSupabase();
           } catch (e) {
+            debugPrint('Rasm yuklashda xatolik: $e');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
-              );
-            }
-          }
-        }
-        
-        if (savedImageUrls.isNotEmpty) {
-          try {
-            // Update patient with image URLs
-            newPatient.imagePaths = savedImageUrls;
-            await docRef.update({
-              'imagePaths': savedImageUrls,
-              'lastUpdated': FieldValue.serverTimestamp(),
-            });
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Rasmlarni yangilashda xatolik: $e')),
+                SnackBar(content: Text('Rasm yuklashda xatolik: ${e.toString()}')),
               );
             }
           }
         }
       }
 
-      // Save to local storage
-      try {
-        final patientsBox = Hive.box<Patient>('patients');
-        await patientsBox.add(newPatient);
-        
-        if (mounted) {
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lokal xotiraga saqlashda xatolik: $e')),
-          );
-        }
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bemor muvaffaqiyatli saqlandi!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
+      debugPrint('Xatolik yuz berdi: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Xatolik yuz berdi: $e')),
@@ -363,25 +524,29 @@ class _PatientFormState extends State<PatientForm> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile>? pickedFiles = await _picker.pickMultiImage(
+      final ImagePicker picker = ImagePicker();
+      final List<XFile>? pickedFiles = await picker.pickMultiImage(
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
       );
 
-      if (pickedFiles != null) {
+      if (pickedFiles != null && mounted) {
         setState(() {
           _images.addAll(pickedFiles.map((file) => File(file.path)));
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
+        );
+      }
     }
   }
 
   void _removeImage(int index) {
+    if (!mounted) return;
     setState(() {
       _images.removeAt(index);
     });

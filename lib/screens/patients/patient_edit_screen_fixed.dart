@@ -240,7 +240,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
       final file = File(imagePath);
       final fileName = '${widget.patient.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       
-      // Upload to Supabase storage
+      // Simple file upload to Supabase storage
       final bytes = await file.readAsBytes();
       await Supabase.instance.client.storage
           .from('patient-images')

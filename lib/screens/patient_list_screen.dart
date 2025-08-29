@@ -1,55 +1,115 @@
-import 'dart:async'; // ✅ Timer uchun to‘g‘ri import
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:stomotologiya_app/models/patient.dart';
-import 'package:stomotologiya_app/service/firebase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PatientListScreen extends StatefulWidget {
-  const PatientListScreen({super.key});
+  const PatientListScreen({Key? key}) : super(key: key);
 
   @override
-  State<PatientListScreen> createState() => _PatientListScreenState();
+  _PatientListScreenState createState() => _PatientListScreenState();
 }
 
 class _PatientListScreenState extends State<PatientListScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final SupabaseClient _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
+  
+  List<Patient> _patients = [];
+  bool _isLoading = true;
+  String? _error;
   String _searchQuery = '';
-  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchChanged);
+    _loadPatients();
+  }
+
+  Future<void> _loadPatients() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      // Load patients from Supabase
+      final response = await _supabase
+          .from('patients')
+          .select()
+          .order('created_at', ascending: false);
+
+      if (response == null) {
+        throw Exception('Failed to load patients');
+      }
+
+      final List<dynamic> data = List<dynamic>.from(response);
+      setState(() {
+        _patients = data.map((json) => Patient.fromJson(json)).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Bemorlarni yuklashda xatolik: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Patient> get _filteredPatients {
+    if (_searchQuery.isEmpty) return _patients;
+    
+    return _patients.where((patient) {
+      return patient.ismi.toLowerCase().contains(_searchQuery) ||
+          (patient.telefonRaqami?.toLowerCase().contains(_searchQuery) ?? false);
+    }).toList();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _debounce?.cancel();
     super.dispose();
-  }
-
-  void _onSearchChanged() {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() {
-          _searchQuery = _searchController.text.trim();
-        });
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Xatolik')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _loadPatients,
+          child: const Icon(Icons.refresh),
+        ),
+      );
+    }
+    
+    final patients = _filteredPatients;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bemorlar Ro\'yxati'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
+            onPressed: _loadPatients,
           ),
         ],
       ),
@@ -59,69 +119,68 @@ class _PatientListScreenState extends State<PatientListScreen> {
             padding: const EdgeInsets.all(8.0),
             child: TextField(
               controller: _searchController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Qidirish...',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10.0),
+                  borderRadius: BorderRadius.all(Radius.circular(10.0)),
                 ),
               ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.toLowerCase().trim();
+                });
+              },
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<Patient>>(
-              stream: _searchQuery.isEmpty
-                  ? _firebaseService.getPatients()
-                  : _firebaseService.searchPatients(_searchQuery),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                      child: Text('Xatolik yuz berdi: ${snapshot.error}'));
-                }
-
-                final patients = snapshot.data ?? [];
-
-                if (patients.isEmpty) {
-                  return const Center(child: Text('Bemorlar topilmadi'));
-                }
-
-                return ListView.builder(
-                  itemCount: patients.length,
-                  itemBuilder: (context, index) {
-                    final patient = patients[index];
-                    return _buildPatientCard(patient);
-                  },
-                );
-              },
-            ),
+            child: patients.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Bemorlar topilmadi',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: patients.length,
+                    itemBuilder: (context, index) {
+                      final patient = patients[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 4.0,
+                        ),
+                        child: ListTile(
+                          title: Text(
+                            patient.ismi,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            patient.telefonRaqami ?? 'Telefon raqami kiritilmagan',
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                          onTap: () {
+                            // TODO: Navigate to patient details
+                            // Navigator.pushNamed(
+                            //   context,
+                            //   '/patient_details',
+                            //   arguments: patient.id,
+                            // );
+                          },
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // TODO: Navigate to add patient screen
+          // Navigator.pushNamed(context, '/add_patient');
         },
         child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildPatientCard(Patient patient) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text(patient.fullName[0].toUpperCase()),
-        ),
-        title: Text(patient.fullName),
-        subtitle: Text(patient.phoneNumber),
-        onTap: () {
-          // TODO: Navigate to patient details
-        },
       ),
     );
   }

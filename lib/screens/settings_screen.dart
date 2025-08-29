@@ -1,7 +1,7 @@
 // import 'package:flutter/material.dart';
 // import 'package:hive_flutter/hive_flutter.dart';
 // import '../models/patient.dart';
-// import '../service/auth_service.dart';
+// import '../service/supabase_auth_servise.dart';
 
 // class SettingsScreen extends StatefulWidget {
 //   const SettingsScreen({super.key});
