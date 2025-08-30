@@ -68,33 +68,59 @@ class AddPatientScreenState extends State<AddPatientScreen> {
   Future<void> _pickImage(ImageSource source) async {
     Navigator.of(context).pop(); // Close the modal bottom sheet
 
-    if (source == ImageSource.camera) {
-      // For camera, add a single image
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        imageQuality: 80,
-      );
+    try {
+      if (source == ImageSource.camera) {
+        // Check if we're on Windows and camera is not supported
+        if (Theme.of(context).platform == TargetPlatform.windows) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Kamera Windows platformasida qo\'llab-quvvatlanmaydi. Galereyadan tanlang.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+        
+        // For camera, add a single image
+        final XFile? image = await _picker.pickImage(
+          source: source,
+          imageQuality: 80,
+        );
 
-      if (image != null) {
-        setState(() {
-          _images.add(File(image.path));
-        });
+        if (image != null) {
+          setState(() {
+            _images.add(File(image.path));
+          });
+        }
+      } else {
+        // For gallery, allow multiple selection
+        final List<XFile> images = await _picker.pickMultiImage(
+          imageQuality: 80,
+        );
+
+        if (images.isNotEmpty) {
+          setState(() {
+            _images.addAll(images.map((xFile) => File(xFile.path)));
+          });
+        }
       }
-    } else {
-      // For gallery, allow multiple selection
-      final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 80,
-      );
-
-      if (images.isNotEmpty) {
-        setState(() {
-          _images.addAll(images.map((xFile) => File(xFile.path)));
-        });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rasm tanlashda xatolik: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   void _showImageSourceOptions() {
+    final isWindows = Theme.of(context).platform == TargetPlatform.windows;
+    
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -104,14 +130,15 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: Icon(Icons.photo_camera, color: Colors.blue[800]),
-              title: const Text('Kameradan olish'),
-              onTap: () => _pickImage(ImageSource.camera),
-            ),
+            if (!isWindows)
+              ListTile(
+                leading: Icon(Icons.photo_camera, color: Colors.blue[800]),
+                title: const Text('Kameradan olish'),
+                onTap: () => _pickImage(ImageSource.camera),
+              ),
             ListTile(
               leading: Icon(Icons.photo_library, color: Colors.blue[800]),
-              title: const Text('Galereyadan tanlash'),
+              title: const Text('Galereyadan tanlang'),
               onTap: () => _pickImage(ImageSource.gallery),
             ),
             if (_images.isNotEmpty)
@@ -198,7 +225,29 @@ class AddPatientScreenState extends State<AddPatientScreen> {
     });
 
     try {
-      // Create patient object without image URLs first
+      // Upload images first if there are any
+      final List<String> uploadedImageUrls = [];
+      if (_images.isNotEmpty) {
+        debugPrint('📸 ${_images.length} ta rasm yuklanmoqda...');
+        
+        for (int i = 0; i < _images.length; i++) {
+          final imageFile = _images[i];
+          try {
+            // Use a temporary ID for upload path
+            final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+            final imageUrl = await _storageService.uploadPatientImage(tempId, imageFile);
+            if (imageUrl != null) {
+              uploadedImageUrls.add(imageUrl);
+              debugPrint('✅ Rasm ${i + 1} yuklandi: $imageUrl');
+            }
+          } catch (imageError) {
+            debugPrint('❌ Rasm ${i + 1} yuklashda xatolik: $imageError');
+            // Continue with other images even if one fails
+          }
+        }
+      }
+
+      // Create patient object with uploaded image URLs
       final newPatient = Patient(
         ismi: fullname,
         tugilganSana: birthDate ??
@@ -207,38 +256,31 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         birinchiKelganSana: firstVisitDate ?? DateTime.now(),
         shikoyat: complaint,
         manzil: address,
-        rasmlarManzillari: [],
+        rasmlarManzillari: uploadedImageUrls,
       );
 
-      // Save to get the patient ID from Supabase
+      debugPrint('💾 Bemor ma\'lumotlari saqlanmoqda...');
+      debugPrint('🖼️ Rasmlar soni: ${uploadedImageUrls.length}');
+      
+      // Save patient to Supabase with image URLs
       await newPatient.saveToSupabase();
 
       if (newPatient.id == null) {
         throw Exception('Bemor ID raqamini olib bo\'lmadi.');
       }
 
-      // Upload images if there are any
-      if (_images.isNotEmpty) {
-        final List<String> uploadedImageUrls = [];
-        for (final imageFile in _images) {
-          final imageUrl = await _storageService.uploadPatientImage(
-              newPatient.id!, imageFile);
-          if (imageUrl != null) {
-            uploadedImageUrls.add(imageUrl);
-          }
-        }
-
-        // If images were uploaded, update the patient record
-        if (uploadedImageUrls.isNotEmpty) {
-          newPatient.rasmlarManzillari = uploadedImageUrls;
-          await newPatient.saveToSupabase(); // This will perform an UPDATE
-        }
-      }
+      debugPrint('✅ Bemor saqlandi. ID: ${newPatient.id}');
 
       if (mounted) {
+        final message = _images.isNotEmpty && uploadedImageUrls.isEmpty
+            ? '$fullname qo\'shildi (rasmlar yuklanmadi)'
+            : uploadedImageUrls.isNotEmpty 
+                ? '$fullname va ${uploadedImageUrls.length} ta rasm muvaffaqiyatli qo\'shildi'
+                : '$fullname muvaffaqiyatli qo\'shildi';
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$fullname muvaffaqiyatli qo\'shildi'),
+            content: Text(message),
             backgroundColor: Colors.green[700],
             behavior: SnackBarBehavior.floating,
           ),
@@ -247,6 +289,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
             .pushNamedAndRemoveUntil('/home', (route) => false);
       }
     } catch (e) {
+      debugPrint('❌ Bemor saqlashda xatolik: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

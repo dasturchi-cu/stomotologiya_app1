@@ -42,26 +42,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       setState(() => _isLoading = true);
       await _patientService.initialize();
 
-      _patientService.getPatients().listen((patients) {
-        if (mounted) {
-          setState(() {
-            _patients = patients;
-            _isLoading = false;
-            _error = null;
-          });
-        }
-      }).onError((error) {
-        if (mounted) {
-          setState(() {
-            _error = 'Xatolik yuz berdi: ${error.toString()}';
-            _isLoading = false;
-          });
-        }
-      });
-    } catch (e) {
+      final patients = await _patientService.getPatients();
       if (mounted) {
         setState(() {
-          _error = 'Xatolik yuz berdi: ${e.toString()}';
+          _patients = patients;
+          _isLoading = false;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Xatolik yuz berdi: ${error.toString()}';
           _isLoading = false;
         });
       }
@@ -77,6 +69,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1E88E5),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: const Color(0xFF1E88E5),
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+          onPressed: () {
+            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+          },
+        ),
+        title: const Text(
+          'Statistika',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -89,68 +101,73 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : _error != null
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  size: 64,
-                                  color: Colors.white70,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _error!,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: _loadPatients,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.blue,
-                                  ),
-                                  child: const Text('Qayta urinish'),
-                                ),
-                              ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktop = constraints.maxWidth > 800;
+              
+              return Column(
+                children: [
+                  if (!isDesktop) _buildHeader(),
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : _patients.isEmpty
-                            ? _buildEmptyState()
-                            : FadeTransition(
-                                opacity: _fadeAnimation,
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.all(20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _buildOverviewCards(_patients),
-                                      const SizedBox(height: 32),
-                                      _buildRecentActivity(_patients),
-                                      const SizedBox(height: 20),
-                                    ],
-                                  ),
+                        : _error != null
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline,
+                                      size: 64,
+                                      color: Colors.white70,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _error!,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: _loadPatients,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: Colors.blue,
+                                      ),
+                                      child: const Text('Qayta urinish'),
+                                    ),
+                                  ],
                                 ),
-                              ),
-              ),
-            ],
+                              )
+                            : _patients.isEmpty
+                                ? _buildEmptyState()
+                                : FadeTransition(
+                                    opacity: _fadeAnimation,
+                                    child: SingleChildScrollView(
+                                      padding: EdgeInsets.all(isDesktop ? 32 : 20),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          _buildOverviewCards(_patients),
+                                          const SizedBox(height: 32),
+                                          _buildRecentActivity(_patients),
+                                          const SizedBox(height: 20),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -276,62 +293,113 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         ? (totalVisits / totalPatients).toStringAsFixed(1)
         : '0';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Umumiy ko\'rsatkichlar',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth > 800;
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _buildStatCard(
-                'Jami bemorlar',
-                totalPatients.toString(),
-                Icons.people_rounded,
-                const Color(0xFF4FC3F7),
+            const Text(
+              'Umumiy ko\'rsatkichlar',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                'Ushbu oy',
-                thisMonthPatients.toString(),
-                Icons.calendar_today_rounded,
-                const Color(0xFF66BB6A),
+            const SizedBox(height: 20),
+            if (isDesktop)
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      'Jami bemorlar',
+                      totalPatients.toString(),
+                      Icons.people_rounded,
+                      const Color(0xFF4FC3F7),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Ushbu oy',
+                      thisMonthPatients.toString(),
+                      Icons.calendar_today_rounded,
+                      const Color(0xFF66BB6A),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Jami tashriflar',
+                      totalVisits.toString(),
+                      Icons.medical_services_rounded,
+                      const Color(0xFFFF7043),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      'O\'rtacha tashrif',
+                      avgVisitsPerPatient,
+                      Icons.trending_up_rounded,
+                      const Color(0xFFAB47BC),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'Jami bemorlar',
+                          totalPatients.toString(),
+                          Icons.people_rounded,
+                          const Color(0xFF4FC3F7),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatCard(
+                          'Ushbu oy',
+                          thisMonthPatients.toString(),
+                          Icons.calendar_today_rounded,
+                          const Color(0xFF66BB6A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'Jami tashriflar',
+                          totalVisits.toString(),
+                          Icons.medical_services_rounded,
+                          const Color(0xFFFF7043),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatCard(
+                          'O\'rtacha tashrif',
+                          avgVisitsPerPatient,
+                          Icons.trending_up_rounded,
+                          const Color(0xFFAB47BC),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Jami tashriflar',
-                totalVisits.toString(),
-                Icons.medical_services_rounded,
-                const Color(0xFFFF7043),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                'O\'rtacha tashrif',
-                avgVisitsPerPatient,
-                Icons.trending_up_rounded,
-                const Color(0xFFAB47BC),
-              ),
-            ),
-          ],
-        ),
-      ],
+        );
+      },
     );
   }
 

@@ -120,33 +120,59 @@ class _PatientEditFullScreenState extends State<PatientEditFullScreen> {
   Future<void> _pickImage(ImageSource source) async {
     Navigator.of(context).pop();
     
-    if (source == ImageSource.camera) {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        imageQuality: 80,
-      );
+    try {
+      if (source == ImageSource.camera) {
+        // Check if we're on Windows and camera is not supported
+        if (Theme.of(context).platform == TargetPlatform.windows) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Kamera Windows platformasida qo\'llab-quvvatlanmaydi. Galereyadan tanlang.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+        
+        final XFile? image = await _picker.pickImage(
+          source: source,
+          imageQuality: 80,
+        );
 
-      if (image != null) {
-        setState(() {
-          _images.add(File(image.path));
-        });
-        _checkForChanges();
+        if (image != null) {
+          setState(() {
+            _images.add(File(image.path));
+          });
+          _checkForChanges();
+        }
+      } else {
+        final List<XFile> images = await _picker.pickMultiImage(
+          imageQuality: 80,
+        );
+
+        if (images.isNotEmpty) {
+          setState(() {
+            _images.addAll(images.map((xFile) => File(xFile.path)));
+          });
+          _checkForChanges();
+        }
       }
-    } else {
-      final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 80,
-      );
-
-      if (images.isNotEmpty) {
-        setState(() {
-          _images.addAll(images.map((xFile) => File(xFile.path)));
-        });
-        _checkForChanges();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rasm tanlashda xatolik: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   void _showImageSourceOptions() {
+    final isWindows = Theme.of(context).platform == TargetPlatform.windows;
+    
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -156,11 +182,12 @@ class _PatientEditFullScreenState extends State<PatientEditFullScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera, color: Colors.blue),
-              title: const Text('Kameradan olish'),
-              onTap: () => _pickImage(ImageSource.camera),
-            ),
+            if (!isWindows)
+              ListTile(
+                leading: const Icon(Icons.photo_camera, color: Colors.blue),
+                title: const Text('Kameradan olish'),
+                onTap: () => _pickImage(ImageSource.camera),
+              ),
             ListTile(
               leading: const Icon(Icons.photo_library, color: Colors.blue),
               title: const Text('Galereyadan tanlash'),

@@ -31,39 +31,42 @@ class PatientService {
     }
   }
 
-  /// Fetches all patients for current user as a stream (real-time updates)
-  Stream<List<Patient>> getPatients() async* {
+  // Cache for patients data
+  List<Patient>? _cachedPatients;
+  DateTime? _lastCacheTime;
+  static const Duration _cacheTimeout = Duration(minutes: 5);
+
+  /// Fetches all patients for current user with caching
+  Future<List<Patient>> getPatients() async {
     if (!_isInitialized || _supabase == null) {
       await initialize();
     }
 
     final currentUser = _authService.currentUser;
     if (currentUser == null) {
-      if (kDebugMode) {
-        print('❌ No current user found for getPatients');
-      }
-      yield [];
-      return;
+      return [];
     }
 
-    if (kDebugMode) {
-      print('🔍 Getting patients for user: ${currentUser.uid}');
-      print('🔍 User email: ${currentUser.email}');
+    // Return cached data if still valid
+    if (_cachedPatients != null && 
+        _lastCacheTime != null && 
+        DateTime.now().difference(_lastCacheTime!) < _cacheTimeout) {
+      return _cachedPatients!;
     }
 
     try {
-      // First, try to get initial data with a regular query
-      final initialData = await _supabase!
+      final response = await _supabase!
           .from(_tableName)
           .select()
           .eq('user_id', currentUser.uid)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(100); // Limit initial load
 
-      final initialPatients = <Patient>[];
-      for (final item in (initialData as List)) {
+      final patients = <Patient>[];
+      for (final item in (response as List)) {
         try {
           final patientData = Map<String, dynamic>.from(item as Map);
-          initialPatients.add(Patient.fromMap(patientData));
+          patients.add(Patient.fromMap(patientData));
         } catch (e) {
           if (kDebugMode) {
             print('Error parsing patient data: $e');
@@ -71,63 +74,24 @@ class PatientService {
           continue;
         }
       }
+
+      // Update cache
+      _cachedPatients = patients;
+      _lastCacheTime = DateTime.now();
       
-      yield initialPatients;
-
-      // Then try to set up realtime subscription, but fall back gracefully if it fails
-      try {
-        await for (final data in _supabase!
-            .from(_tableName)
-            .stream(primaryKey: ['id'])
-            .eq('user_id', currentUser.uid)
-            .order('created_at', ascending: false)) {
-          
-          final patients = data
-              .map((json) => Patient.fromMap(Map<String, dynamic>.from(json)))
-              .toList();
-          yield patients;
-        }
-      } catch (realtimeError) {
-        if (kDebugMode) {
-          print('Realtime subscription failed, using polling instead: $realtimeError');
-        }
-        
-        // Fall back to periodic polling if realtime fails
-        while (true) {
-          await Future.delayed(const Duration(seconds: 5));
-          try {
-            final data = await _supabase!
-                .from(_tableName)
-                .select()
-                .eq('user_id', currentUser.uid)
-                .order('created_at', ascending: false);
-
-            final patients = <Patient>[];
-            for (final item in (data as List)) {
-              try {
-                final patientData = Map<String, dynamic>.from(item as Map);
-                patients.add(Patient.fromMap(patientData));
-              } catch (e) {
-                if (kDebugMode) {
-                  print('Error parsing patient data: $e');
-                }
-                continue;
-              }
-            }
-            yield patients;
-          } catch (e) {
-            if (kDebugMode) {
-              print('Error in polling fallback: $e');
-            }
-          }
-        }
-      }
+      return patients;
     } catch (error) {
       if (kDebugMode) {
         print('Error in getPatients: $error');
       }
-      yield [];
+      return _cachedPatients ?? [];
     }
+  }
+
+  /// Clear cache to force refresh
+  void clearCache() {
+    _cachedPatients = null;
+    _lastCacheTime = null;
   }
 
   /// Fetches all patients for current user at once (for exports, reports, etc.)

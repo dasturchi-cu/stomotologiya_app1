@@ -1,11 +1,11 @@
 {
-    "name": "stomotologiya_app",
-    "short_name": "stomotologiya_app",
+    "name": "Dr Jaxongir",
+    "short_name": "Dr Jaxongir",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Dr Jaxongir - Stomatologiya ilovasi",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
