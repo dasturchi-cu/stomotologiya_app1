@@ -6,7 +6,7 @@ class SupabaseStorageService {
   static final SupabaseStorageService _instance =
       SupabaseStorageService._internal();
   final SupabaseClient _supabase = Supabase.instance.client;
-  static const String bucketName = 'rasmlar';
+  static const String bucketName = 'patient-images';
   bool _initialized = false;
 
   factory SupabaseStorageService() {

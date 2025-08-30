@@ -30,6 +30,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
   }
 
   Future<bool> _confirmExit() async {
+    if (_isLoading) return false;
     if (!_hasChanges) return true;
 
     final shouldPop = await showDialog<bool>(
@@ -59,8 +60,8 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rasmini o\'chirish'),
-        content: const Text('Bu rasmini o\'chirishni istaysizmi?'),
+        title: const Text('Rasmni o\'chirish'),
+        content: const Text('Bu rasmni o\'chirishni istaysizmi?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -199,26 +200,43 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
 
   Future<void> _saveChanges() async {
     if (!_hasChanges || _isLoading) return;
+    if (widget.patient.id == null || widget.patient.id!.isEmpty) {
+      _errorHandler.showError('Bemor ID topilmadi. Avval bemorni saqlang.');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      // Upload new images to Supabase Storage
       final uploadedImageUrls = await _uploadNewImages();
 
-      // Update patient record in Supabase
-      await Supabase.instance.client.from('patients').update({
-        'rasmlar_manzillari': uploadedImageUrls,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', widget.patient.id ?? '');
+      final updated = await Supabase.instance.client
+          .from('patients')
+          .update({
+            'rasmlar_manzillari': uploadedImageUrls,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', widget.patient.id!)
+          .select('id, rasmlar_manzillari')
+          .maybeSingle();
+
+      if (updated == null) {
+        throw Exception('Server javobi bo\'sh. RLS yoki ID mos emas bo\'lishi mumkin.');
+      }
+
+      final updatedUrls = List<String>.from(updated['rasmlar_manzillari'] ?? []);
+      widget.patient.rasmlarManzillari
+        ..clear()
+        ..addAll(updatedUrls);
 
       if (mounted) {
         _errorHandler.showSuccess('Rasmlar muvaffaqiyatli yangilandi');
+        _hasChanges = false;
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
-        _errorHandler.showError('Xatolik yuz berdi: ${e.toString()}');
+        _errorHandler.showError('Saqlashda xatolik: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -231,23 +249,20 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
     final newImageFiles = _imagePaths.where((path) => !path.startsWith('http'));
     final List<String> uploadedUrls = [];
 
-    // Keep existing remote URLs
     uploadedUrls.addAll(_imagePaths.where((path) => path.startsWith('http')));
 
-    // Upload new local images
     for (final imagePath in newImageFiles) {
       final file = File(imagePath);
       final fileName =
           '${widget.patient.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-      // Upload to Supabase storage
       final bytes = await file.readAsBytes();
       await Supabase.instance.client.storage
-          .from('patient-images')
+          .from('rasmlar')
           .uploadBinary(fileName, bytes);
 
       final url = Supabase.instance.client.storage
-          .from('patient-images')
+          .from('rasmlar')
           .getPublicUrl(fileName);
 
       uploadedUrls.add(url);
@@ -261,134 +276,179 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
     return WillPopScope(
       onWillPop: _confirmExit,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Rasmlarni tahrirlash'),
-          actions: [
-            if (_hasChanges)
-              TextButton(
-                onPressed: _isLoading ? null : _saveChanges,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              title: const Text('Rasmlarni Tahrirlash'),
+              pinned: true,
+              floating: true,
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              actions: [
+                if (_hasChanges)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _saveChanges,
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      )
-                    : const Text('Saqlash'),
-              ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Saqlash', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+              ],
+            ),
+            _buildBody(),
           ],
         ),
         floatingActionButton: _isLoading
             ? null
-            : FloatingActionButton(
+            : FloatingActionButton.extended(
                 onPressed: _showImageSourceOptions,
-                child: const Icon(Icons.add_photo_alternate),
+                icon: const Icon(Icons.add_a_photo_rounded),
+                label: const Text('Rasm Qo\'shish'),
+                backgroundColor: const Color(0xFF3B82F6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-        body: _isLoading && _imagePaths.isEmpty
-            ? const Center(child: CircularProgressIndicator())
-            : _imagePaths.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.photo_library,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Hech qanday rasm mavjud emas',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed:
-                              _isLoading ? null : _showImageSourceOptions,
-                          icon: const Icon(Icons.add_photo_alternate),
-                          label: const Text('Rasm qo\'shish'),
-                        ),
-                      ],
-                    ),
-                  )
-                : Stack(
-                    children: [
-                      GridView.builder(
-                        padding: const EdgeInsets.all(8),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                          childAspectRatio: 0.75,
-                        ),
-                        itemCount: _imagePaths.length,
-                        itemBuilder: (context, index) {
-                          final isLocalImage =
-                              !_imagePaths[index].startsWith('http');
+      ),
+    );
+  }
 
-                          return Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              isLocalImage
-                                  ? Image.file(
-                                      File(_imagePaths[index]),
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error,
-                                              stackTrace) =>
-                                          const Center(
-                                              child: Icon(Icons.broken_image)),
-                                    )
-                                  : Image.network(
-                                      _imagePaths[index],
-                                      fit: BoxFit.cover,
-                                      loadingBuilder:
-                                          (context, child, loadingProgress) {
-                                        if (loadingProgress == null)
-                                          return child;
-                                        return const Center(
-                                          child: CircularProgressIndicator(),
-                                        );
-                                      },
-                                      errorBuilder: (context, error,
-                                              stackTrace) =>
-                                          const Center(
-                                              child: Icon(Icons.broken_image)),
-                                    ),
-                              Positioned(
-                                top: 4,
-                                right: 4,
-                                child: IconButton(
-                                  icon: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.black54,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ),
-                                  onPressed: _isLoading
-                                      ? null
-                                      : () => _confirmDeleteImage(index),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                      if (_isLoading)
-                        const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                    ],
+  Widget _buildBody() {
+    if (_isLoading && _imagePaths.isEmpty) {
+      return const SliverFillRemaining(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_imagePaths.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.photo_library_outlined,
+                size: 80,
+                color: Colors.grey[300],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Hech qanday rasm mavjud emas',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Yangi rasm qo\'shish uchun \n pastdagi tugmani bosing.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[500]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16.0),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.8,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            return _buildImageTile(index);
+          },
+          childCount: _imagePaths.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageTile(int index) {
+    final path = _imagePaths[index];
+    final isLocalImage = !path.startsWith('http') && !path.startsWith('https');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            isLocalImage
+                ? Image.file(
+                    path.startsWith('file://') 
+                        ? File.fromUri(Uri.parse(path))
+                        : File(path),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                  )
+                : Image.network(
+                    path,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
                   ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _isLoading ? null : () => _confirmDeleteImage(index),
+                  child: const SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -398,3 +458,4 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
     super.dispose();
   }
 }
+

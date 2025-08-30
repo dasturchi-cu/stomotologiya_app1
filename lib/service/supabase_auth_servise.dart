@@ -29,6 +29,8 @@ class AuthService {
   AppUser? _currentUser;
   AppUser? get currentUser => _currentUser;
 
+  get user => null;
+
   Future<void> initialize() async {
     if (_isInitialized) {
       return;
@@ -48,10 +50,14 @@ class AuthService {
         }
       });
 
+      // Check for existing session first
       final currentSession = _auth.currentSession;
       if (currentSession != null) {
+        debugPrint(
+            'Existing session found, auto-logging in user: ${currentSession.user.email}');
         await _handleSupabaseUser(currentSession.user);
       } else {
+        debugPrint('No existing session found');
         _statusController.add(UserStatus.unregistered);
       }
 
@@ -95,7 +101,8 @@ class AuthService {
           await _supabase.from('users').insert(newUser);
         } catch (e) {
           // RLS may forbid client-side inserts; log and continue without failing
-          debugPrint('RLS prevented client insert into users table. Skipping. Error: $e');
+          debugPrint(
+              'RLS prevented client insert into users table. Skipping. Error: $e');
         }
 
         _currentUser = AppUser(
@@ -132,9 +139,10 @@ class AuthService {
       }
 
       _userController.add(_currentUser);
-      _statusController.add(_currentUser!.status);
-
-      debugPrint('User session updated: ${_currentUser!.email}');
+      if (_currentUser != null) {
+        _statusController.add(_currentUser!.status);
+        debugPrint('User session updated: ${_currentUser!.email}');
+      }
     } catch (e, stackTrace) {
       debugPrint('Error handling user session: $e');
       debugPrint('Stack trace: $stackTrace');

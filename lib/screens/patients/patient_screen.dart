@@ -1,7 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart'; // Sana formatlash uchun import
+import 'package:intl/intl.dart';
 import 'package:stomotologiya_app/models/patient.dart';
 
 class PatientEdit extends StatefulWidget {
@@ -193,12 +194,38 @@ class _PatientEditState extends State<PatientEdit> {
               ],
             ),
             if (imagePath.isNotEmpty)
-              Image.network(
-                imagePath,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
+              (() {
+                final isNetwork = imagePath.startsWith('http') ||
+                    imagePath.startsWith('https');
+                if (isNetwork) {
+                  return Image.network(
+                    imagePath,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 200,
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    ),
+                  );
+                } else {
+                  final file = imagePath.startsWith('file://')
+                      ? File.fromUri(Uri.parse(imagePath))
+                      : File(imagePath);
+                  return Image.file(
+                    file,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 200,
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    ),
+                  );
+                }
+              })(),
             SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

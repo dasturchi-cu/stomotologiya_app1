@@ -52,16 +52,35 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             minScale: 0.5,
             maxScale: 5.0,
             child: Center(
-              child: Image.file(
-                File(path),
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Text(
-                    'Rasmni yuklashda xatolik',
-                    style: TextStyle(color: Colors.white),
+              child: (() {
+                final isNetwork = path.startsWith('http') || path.startsWith('https');
+                if (isNetwork) {
+                  return Image.network(
+                    path,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Text(
+                        'Rasmni yuklashda xatolik',
+                        style: TextStyle(color: Colors.white),
+                      );
+                    },
                   );
-                },
-              ),
+                } else {
+                  final file = path.startsWith('file://') 
+                      ? File.fromUri(Uri.parse(path))
+                      : File(path);
+                  return Image.file(
+                    file,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Text(
+                        'Rasmni yuklashda xatolik',
+                        style: TextStyle(color: Colors.white),
+                      );
+                    },
+                  );
+                }
+              })(),
             ),
           );
         },

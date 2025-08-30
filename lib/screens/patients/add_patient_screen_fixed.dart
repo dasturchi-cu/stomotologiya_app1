@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-import '../../models/patient.dart';
-import '../../service/error_handler.dart';
-import '../../service/patient_service.dart';
+import 'package:stomotologiya_app/models/patient.dart';
+import 'package:stomotologiya_app/service/patient_service.dart';
+import 'package:stomotologiya_app/service/error_handler.dart';
 
 class AddPatientScreen extends StatefulWidget {
   const AddPatientScreen({super.key});
@@ -142,6 +142,31 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Upload images to Supabase storage first
+      List<String> uploadedImageUrls = [];
+      
+      if (_selectedImages.isNotEmpty) {
+        for (final imageFile in _selectedImages) {
+          try {
+            final fileName = 'patient_${DateTime.now().millisecondsSinceEpoch}_${uploadedImageUrls.length}.jpg';
+            final bytes = await imageFile.readAsBytes();
+            
+            await Supabase.instance.client.storage
+                .from('patient-images')
+                .uploadBinary(fileName, bytes);
+            
+            final imageUrl = Supabase.instance.client.storage
+                .from('patient-images')
+                .getPublicUrl(fileName);
+            
+            uploadedImageUrls.add(imageUrl);
+          } catch (uploadError) {
+            debugPrint('Image upload error: $uploadError');
+            // Continue with other images even if one fails
+          }
+        }
+      }
+
       final newPatient = Patient(
         id: null,
         ismi: _fullnameController.text.trim(),
@@ -150,8 +175,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         birinchiKelganSana: _firstVisitDate ?? DateTime.now(),
         shikoyat: _complaintController.text.trim(),
         manzil: _addressController.text.trim(),
-        rasmManzili: '',
-        rasmlarManzillari: [],
+        rasmManzili: uploadedImageUrls.isNotEmpty ? uploadedImageUrls.first : '',
+        rasmlarManzillari: uploadedImageUrls,
         tashrifSanalari: [
           (_firstVisitDate ?? DateTime.now()).toIso8601String()
         ],

@@ -52,6 +52,9 @@ class Patient extends HiveObject {
   @HiveField(11)
   DateTime? updatedAt;
 
+  @HiveField(12)
+  String? userId; // User ID to associate patient with specific user
+
   // -------------------------------------------------
   // 3️⃣  Constructor
   // -------------------------------------------------
@@ -68,6 +71,7 @@ class Patient extends HiveObject {
     List<String>? tashrifSanalari,
     this.createdAt,
     this.updatedAt,
+    this.userId,
   })  : rasmlarManzillari = rasmlarManzillari ?? [],
         tashrifSanalari = tashrifSanalari ?? [];
 
@@ -84,6 +88,7 @@ class Patient extends HiveObject {
     List<String>? tashrifSanalari,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? userId,
   }) {
     return Patient(
       id: id ?? this.id,
@@ -98,6 +103,7 @@ class Patient extends HiveObject {
       tashrifSanalari: tashrifSanalari ?? this.tashrifSanalari,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      userId: userId ?? this.userId,
     );
   }
 
@@ -156,6 +162,7 @@ class Patient extends HiveObject {
         updatedAt: map['updated_at'] != null
             ? DateTime.parse(map['updated_at'] as String)
             : null,
+        userId: map['user_id'] as String?,
       );
 
   /// Supabase expects timestamps as `yyyy‑MM‑dd HH:mm:ss` (UTC).
@@ -175,6 +182,7 @@ class Patient extends HiveObject {
     if (id != null) map['id'] = id;
     if (createdAt != null) map['created_at'] = fmt.format(createdAt!.toUtc());
     if (updatedAt != null) map['updated_at'] = fmt.format(updatedAt!.toUtc());
+    map['user_id'] = userId;
     return map;
   }
 
@@ -186,6 +194,11 @@ class Patient extends HiveObject {
   // -------------------------------------------------
   Future<void> saveToSupabase() async {
     final supabase = Supabase.instance.client;
+    // Ensure userId is populated from the authenticated user before persisting
+    final currentUid = supabase.auth.currentUser?.id;
+    if (userId == null && currentUid != null) {
+      userId = currentUid;
+    }
     final payload = toMap();
 
     try {

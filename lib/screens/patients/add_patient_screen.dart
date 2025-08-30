@@ -3,7 +3,9 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:stomotologiya_app/models/patient.dart';
-import '../../service/supabase_storage_service.dart';
+import 'package:stomotologiya_app/service/supabase_storage_service.dart';
+import 'package:stomotologiya_app/service/patient_service.dart';
+import 'package:stomotologiya_app/service/error_handler.dart';
 
 class AddPatientScreen extends StatefulWidget {
   const AddPatientScreen({super.key});
@@ -13,27 +15,40 @@ class AddPatientScreen extends StatefulWidget {
 }
 
 class AddPatientScreenState extends State<AddPatientScreen> {
-  final _storageService = SupabaseStorageService();
   final _formKey = GlobalKey<FormState>();
-  final _scrollController = ScrollController();
+  final _patientService = PatientService();
+  final _errorHandler = ErrorHandler();
+  final _storageService = SupabaseStorageService();
+  final _picker = ImagePicker();
 
-  // Form fields
-  String fullname = '';
-  DateTime? birthDate;
-  String phoneNumber = '';
-  DateTime? firstVisitDate;
-  String complaint = '';
-  String address = '';
-  final List<File> _images = []; // Changed to list of images
+  // Form controllers
+  final _fullnameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _complaintController = TextEditingController();
+  final _addressController = TextEditingController();
+
+  // ScrollController qo'shildi
+  final ScrollController _scrollController = ScrollController();
+
+  // Form state
+  DateTime? _birthDate;
+  DateTime? _firstVisitDate;
+  final List<File> _images = [];
   bool _isSaving = false;
 
-  // Controllers for text fields
-  final TextEditingController _fullnameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _complaintController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
+  // Form variables qo'shildi
+  String fullname = '';
+  String phoneNumber = '';
+  String complaint = '';
+  String address = '';
+  DateTime? birthDate;
+  DateTime? firstVisitDate;
 
-  final ImagePicker _picker = ImagePicker();
+  // Form field focus nodes
+  final _nameFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
+  final _complaintFocusNode = FocusNode();
+  final _addressFocusNode = FocusNode();
 
   @override
   void dispose() {
@@ -42,6 +57,10 @@ class AddPatientScreenState extends State<AddPatientScreen> {
     _phoneController.dispose();
     _complaintController.dispose();
     _addressController.dispose();
+    _nameFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _complaintFocusNode.dispose();
+    _addressFocusNode.dispose();
     super.dispose();
   }
 
@@ -67,7 +86,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         imageQuality: 80,
       );
 
-      if (images != null && images.isNotEmpty) {
+      if (images.isNotEmpty) {
         setState(() {
           _images.addAll(images.map((xFile) => File(xFile.path)));
         });
@@ -123,10 +142,10 @@ class AddPatientScreenState extends State<AddPatientScreen> {
   // Sana tanlash uchun metod
   Future<void> _selectDate(BuildContext context, bool isBirthDate) async {
     final DateTime initialDate = isBirthDate
-        ? (birthDate ??
-            DateTime.now().subtract(const Duration(
-                days: 365 * 30))) // Default to 30 years ago for birth date
-        : (firstVisitDate ?? DateTime.now());
+        ? (_birthDate ??
+        DateTime.now().subtract(const Duration(
+            days: 365 * 30))) // Default to 30 years ago for birth date
+        : (_firstVisitDate ?? DateTime.now());
 
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -151,8 +170,10 @@ class AddPatientScreenState extends State<AddPatientScreen> {
     if (picked != null) {
       setState(() {
         if (isBirthDate) {
+          _birthDate = picked;
           birthDate = picked;
         } else {
+          _firstVisitDate = picked;
           firstVisitDate = picked;
         }
       });
@@ -260,32 +281,36 @@ class AddPatientScreenState extends State<AddPatientScreen> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
-        title: Text(
+        backgroundColor: Colors.blue[800],
+        title: const Text(
           'Yangi bemor',
           style: TextStyle(
-            color: Colors.blue[800],
+            color: Colors.white,
             fontWeight: FontWeight.bold,
+            fontSize: 18,
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.blue[800]),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+          onPressed: () {
+            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+          },
         ),
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           TextButton.icon(
             onPressed: _isSaving ? null : _savePatient,
             icon: _isSaving
                 ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(Icons.check, color: Colors.green[700]),
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+                : const Icon(Icons.check, color: Colors.white),
             label: Text(
               'Saqlash',
               style: TextStyle(
-                color: _isSaving ? Colors.grey : Colors.green[700],
+                color: _isSaving ? Colors.grey : Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -319,24 +344,24 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
+                              color: Colors.black.withOpacity(0.1),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
                           ],
                           image: _images.isNotEmpty
                               ? DecorationImage(
-                                  image: FileImage(_images[0]),
-                                  fit: BoxFit.cover,
-                                )
+                            image: FileImage(_images[0]),
+                            fit: BoxFit.cover,
+                          )
                               : null,
                         ),
                         child: _images.isEmpty
                             ? Icon(
-                                Icons.add_a_photo,
-                                size: 40,
-                                color: Colors.grey[500],
-                              )
+                          Icons.add_a_photo,
+                          size: 40,
+                          color: Colors.grey[500],
+                        )
                             : null,
                       ),
                     ),
@@ -436,7 +461,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                     const SizedBox(height: 16),
                     _buildDateField(
                       label: 'Tug\'ilgan sana',
-                      value: birthDate != null ? _formatDate(birthDate) : null,
+                      value: _birthDate != null ? _formatDate(_birthDate) : null,
                       icon: Icons.cake_outlined,
                       onTap: () => _selectDate(context, true),
                     ),
@@ -482,8 +507,8 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                   children: [
                     _buildDateField(
                       label: 'Birinchi tashrif sanasi',
-                      value: firstVisitDate != null
-                          ? _formatDate(firstVisitDate)
+                      value: _firstVisitDate != null
+                          ? _formatDate(_firstVisitDate)
                           : null,
                       icon: Icons.calendar_today_outlined,
                       onTap: () => _selectDate(context, false),
@@ -506,7 +531,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
               // Save button
               Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _savePatient,
                   style: ElevatedButton.styleFrom(
@@ -520,12 +545,13 @@ class AddPatientScreenState extends State<AddPatientScreen> {
                   child: _isSaving
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
-                          'SAQLASH',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    'SAQLASH',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
 
@@ -586,7 +612,7 @@ class AddPatientScreenState extends State<AddPatientScreen> {
         filled: true,
         fillColor: Colors.grey[50],
         contentPadding:
-            const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       ),
       maxLines: maxLines,
       keyboardType: keyboardType,

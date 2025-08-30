@@ -327,15 +327,18 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                         ),
                         itemCount: _imagePaths.length,
                         itemBuilder: (context, index) {
-                          final isLocalImage =
-                              !_imagePaths[index].startsWith('http');
+                          final path = _imagePaths[index];
+                          final isLocalImage = !path.startsWith('http') &&
+                              !path.startsWith('https');
 
                           return Stack(
                             fit: StackFit.expand,
                             children: [
                               isLocalImage
                                   ? Image.file(
-                                      File(_imagePaths[index]),
+                                      path.startsWith('file://')
+                                          ? File.fromUri(Uri.parse(path))
+                                          : File(path),
                                       fit: BoxFit.cover,
                                       errorBuilder: (context, error,
                                               stackTrace) =>
@@ -343,7 +346,7 @@ class _PatientImagesEditScreenState extends State<PatientImagesEditScreen> {
                                               child: Icon(Icons.broken_image)),
                                     )
                                   : Image.network(
-                                      _imagePaths[index],
+                                      path,
                                       fit: BoxFit.cover,
                                       loadingBuilder:
                                           (context, child, loadingProgress) {

@@ -10,7 +10,7 @@ import 'screens/export.dart';
 import 'payment/payment.dart';
 import 'screens/patients/add_patient_screen.dart';
 import 'screens/patients/patient_info.dart';
-import 'screens/patients/patient_screen.dart';
+import 'screens/patients/patient_edit_full_screen.dart';
 import 'screens/patients/patient_edit_screen.dart';
 import 'screens/patient_list_screen.dart';
 
@@ -60,11 +60,11 @@ class AppRoutes {
         return _errorRoute('PatientDetailsScreen: noto\'g\'ri argument');
       case patientEdit:
         final arg2 = settings.arguments;
-        if (arg2 is int) {
+        if (arg2 is Patient) {
           return MaterialPageRoute(
-              builder: (_) => PatientEdit(patientIndex: arg2));
+              builder: (_) => PatientEditFullScreen(patient: arg2));
         }
-        return _errorRoute('PatientEdit: index (int) argument kerak');
+        return _errorRoute('PatientEdit: Patient argument kerak');
       case patientImagesEdit:
         final arg3 = settings.arguments;
         if (arg3 is Patient) {
