@@ -109,7 +109,18 @@ class _LoginScreenState extends State<LoginScreenNew>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          // Extract the actual error message from the exception
+          String errorMessage = e.toString();
+          
+          // Clean up the error message to be more user-friendly
+          if (errorMessage.contains('Exception: ')) {
+            errorMessage = errorMessage.replaceAll('Exception: ', '');
+          }
+          
+          _errorMessage = errorMessage;
+          
+          // Log the error for debugging
+          debugPrint('Login error: $e');
         });
       }
     } finally {
@@ -224,10 +235,29 @@ class _LoginScreenState extends State<LoginScreenNew>
 
                 // Error Message
                 if (_errorMessage != null)
-                  Text(
-                    _errorMessage!,
-                    style: TextStyle(color: _errorColor),
-                    textAlign: TextAlign.center,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _errorColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _errorColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: _errorColor, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: TextStyle(
+                              color: _errorColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 const SizedBox(height: 24),
 

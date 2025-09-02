@@ -1,8 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 import '../models/user_status.dart';
+
+// Extension to handle timeout on Future
+extension FutureTimeoutExtension<T> on Future<T> {
+  Future<T> timeoutAfter(Duration duration, {FutureOr<T> Function()? onTimeout}) {
+    return timeout(duration, onTimeout: onTimeout);
+  }
+}
 
 // Remove generated part file import as it's not needed
 
@@ -168,36 +176,71 @@ class AuthService {
   Future<AppUser?> signInWithEmailAndPassword(String email, String password,
       {String? displayName}) async {
     try {
-      final response = await _auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-
-      if (response.user != null) {
-        await _handleSupabaseUser(response.user);
-        debugPrint('Supabase login muvaffaqiyatli');
-        return _currentUser;
+      // Input validation
+      if (email.isEmpty || password.isEmpty) {
+        throw Exception('Iltimos, email va parolni kiriting');
       }
 
-      return null;
-    } catch (e) {
-      debugPrint('Supabase login xatoligi: $e');
-      _statusController.add(UserStatus.error);
+      debugPrint('Attempting to sign in with email: $email');
+      
+      final response = await _auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('Serverga ulanish vaqti tugadi. Iltimos, internet aloqasini tekshiring.');
+        },
+      );
 
-      if (e.toString().contains('Invalid login credentials')) {
-        throw Exception(
-            'Email yoki parol noto\'g\'ri. Iltimos, qaytadan urinib ko\'ring.');
-      } else if (e.toString().contains('Email not confirmed')) {
-        throw Exception(
-            'Email tasdiqlanmagan. Iltimos, emailingizni tekshiring.');
-      } else if (e.toString().contains('too many requests')) {
-        throw Exception(
-            'Juda ko\'p urinish. Iltimos, keyinroq urinib ko\'ring.');
-      } else if (e.toString().contains('network')) {
-        throw Exception(
-            'Internet ulanishi yo\'q. Iltimos, ulanishni tekshiring.');
-      } else {
-        throw Exception('Login xatoligi: Iltimos, qaytadan urinib ko\'ring.');
+      if (response.user == null) {
+        throw Exception('Kirish muvaffaqiyatsiz. Iltimos, qaytadan urinib ko\'ring.');
+      }
+
+      debugPrint('Supabase login muvaffaqiyatli: ${response.user?.email}');
+      debugPrint('User email verified: ${response.user?.emailConfirmedAt != null}');
+      
+      await _handleSupabaseUser(response.user);
+      return _currentUser;
+      
+    } on TimeoutException catch (e) {
+      debugPrint('Login timeout: $e');
+      _statusController.add(UserStatus.error);
+      rethrow;
+      
+    } on AuthException catch (e) {
+      debugPrint('Auth error: ${e.message} (${e.statusCode})');
+      _statusController.add(UserStatus.error);
+      
+      switch (e.statusCode) {
+        case '400':
+          if (e.message.contains('Invalid login credentials')) {
+            throw Exception('Email yoki parol noto\'g\'ri. Iltimos, qaytadan urinib ko\'ring.');
+          } else if (e.message.contains('Email not confirmed')) {
+            throw Exception('Email tasdiqlanmagan. Iltimos, emailingizni tekshiring.');
+          }
+          break;
+        case '429':
+          throw Exception('Juda ko\'p urinish. Iltimos, 5 daqiqadan keyin qayta urinib ko\'ring.');
+      }
+      
+      throw Exception('Kirish xatoligi: ${e.message}');
+      
+    } on SocketException catch (e) {
+      debugPrint('Network error: $e');
+      _statusController.add(UserStatus.offline);
+      throw Exception('Internet aloqasi yo\'q. Iltimos, internetingizni tekshiring.');
+      
+    } catch (e, stackTrace) {
+      debugPrint('Unexpected login error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      _statusController.add(UserStatus.error);
+      
+      if (e.toString().contains('network') || e.toString().contains('SocketException')) {
+        throw Exception('Internet ulanishi yo\'q. Iltimos, ulanishni tekshiring.');
+      } else if (e.toString().contains('timeout') || e is TimeoutException) {
+        throw Exception('Serverga ulanish vaqti tugadi. Iltimos, keyinroq urinib ko\'ring.');
+      }
       }
     }
   }

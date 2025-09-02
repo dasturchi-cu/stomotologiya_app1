@@ -177,16 +177,33 @@ class _PatientListScreenState extends State<PatientListScreen> {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 2,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: 'Qidirish...',
-                prefixIcon: Icon(Icons.search),
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Bemor ismi yoki telefon raqami...',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                prefixIcon: Icon(Icons.search, color: Colors.grey.shade500, size: 20),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                  borderRadius: BorderRadius.circular(8.0),
+                  borderSide: BorderSide.none,
                 ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                isDense: true,
               ),
               onChanged: (value) {
                 if (_debounce?.isActive ?? false) _debounce!.cancel();
@@ -220,48 +237,126 @@ class _PatientListScreenState extends State<PatientListScreen> {
                                 DateTime.parse(patient.tashrifSanalari.last))
                             : 'Tashrif mavjud emas';
 
-                        return Card(
+                        final hasPhone = patient.telefonRaqami?.isNotEmpty ?? false;
+                        
+                        return Container(
                           margin: const EdgeInsets.symmetric(
-                            horizontal: 8.0,
-                            vertical: 4.0,
+                            horizontal: 6.0,
+                            vertical: 2.0,
                           ),
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8.0),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade200, width: 1),
+                            borderRadius: BorderRadius.circular(6.0),
+                            color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
                           ),
-                          child: ListTile(
-                            title: Text(
-                              patient.ismi,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                                                Text(
-                                  patient.telefonRaqami ?? 'Raqam kiritilmagan',
-                                  style: const TextStyle(color: Colors.grey),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6.0),
+                              onTap: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  '/patient_details',
+                                  arguments: patient.id,
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12.0,
+                                  vertical: 8.0,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Oxirgi tashrif: $lastVisit',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.blueGrey,
-                                  ),
+                                child: Row(
+                                  children: [
+                                    // Initials avatar
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        patient.ismi.isNotEmpty 
+                                            ? patient.ismi[0].toUpperCase()
+                                            : '?',
+                                        style: TextStyle(
+                                          color: Theme.of(context).primaryColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Patient details
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            patient.ismi,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 15,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          if (hasPhone) Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.phone_android,
+                                                size: 12,
+                                                color: Colors.grey,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                patient.telefonRaqami!,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.calendar_today,
+                                                size: 12,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                lastVisit,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.blueGrey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Status indicator
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: patient.tashrifSanalari.length > 1 
+                                            ? Colors.green
+                                            : Colors.orange,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      margin: const EdgeInsets.only(left: 8),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                            trailing:
-                                const Icon(Icons.arrow_forward_ios, size: 16),
-                            onTap: () {
-                              // TODO: Navigate to patient details screen
-                              Navigator.pushNamed(
-                                context,
-                                '/patient_details',
-                                arguments: patient.id,
-                              );
-                            },
                           ),
                         );
                       },
@@ -270,15 +365,21 @@ class _PatientListScreenState extends State<PatientListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.pushNamed(context, '/add_patient').then((_) {
-            _loadPatients();
-          });
-        },
-        icon: const Icon(Icons.person_add),
-        label: const Text('Bemor qo\'shish'),
-        backgroundColor: Theme.of(context).primaryColor,
+      floatingActionButton: SizedBox(
+        height: 48,
+        child: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.pushNamed(context, '/add_patient').then((_) {
+              _loadPatients();
+            });
+          },
+          icon: const Icon(Icons.add, size: 20),
+          label: const Text('YANGI', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+        ),
       ),
     );
   }
