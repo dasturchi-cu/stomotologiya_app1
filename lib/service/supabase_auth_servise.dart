@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
@@ -166,15 +165,16 @@ class AuthService {
       _userController.add(null);
       _statusController.add(UserStatus.unregistered);
 
-      // Re-throw the error if it's a critical error
-      if (e is! TimeoutException) {
-        rethrow;
+      // Re-throw with a user-friendly message
+      if (e is TimeoutException) {
+        throw TimeoutException('Serverga ulanish vaqti tugadi. Iltimos, internet aloqasini tekshiring.');
+      } else {
+        throw Exception('Kirishda xatolik yuz berdi. Iltimos, qaytadan urinib ko\'ring.');
       }
     }
   }
 
-  Future<AppUser?> signInWithEmailAndPassword(String email, String password,
-      {String? displayName}) async {
+  Future<AppUser> signInWithEmailAndPassword(String email, String password) async {
     try {
       // Input validation
       if (email.isEmpty || password.isEmpty) {
@@ -193,46 +193,47 @@ class AuthService {
         },
       );
 
-      if (response.user == null) {
+      final user = response.user;
+      if (user == null) {
         throw Exception('Kirish muvaffaqiyatsiz. Iltimos, qaytadan urinib ko\'ring.');
       }
 
-      debugPrint('Supabase login muvaffaqiyatli: ${response.user?.email}');
-      debugPrint('User email verified: ${response.user?.emailConfirmedAt != null}');
+      debugPrint('Supabase login muvaffaqiyatli: ${user.email}');
       
-      await _handleSupabaseUser(response.user);
-      return _currentUser;
+      // Handle the user session
+      await _handleSupabaseUser(user);
+      
+      if (_currentUser == null) {
+        throw Exception('Foydalanuvchi ma\'lumotlarini yuklashda xatolik yuz berdi');
+      }
+      
+      debugPrint('User email verified: ${user.emailConfirmedAt != null}');
+      return _currentUser!;
       
     } on TimeoutException catch (e) {
       debugPrint('Login timeout: $e');
       _statusController.add(UserStatus.error);
-      rethrow;
+      throw Exception('Serverga ulanish vaqti tugadi. Iltimos, internet aloqasini tekshiring.');
       
     } on AuthException catch (e) {
       debugPrint('Auth error: ${e.message} (${e.statusCode})');
       _statusController.add(UserStatus.error);
       
-      switch (e.statusCode) {
-        case '400':
-          if (e.message.contains('Invalid login credentials')) {
-            throw Exception('Email yoki parol noto\'g\'ri. Iltimos, qaytadan urinib ko\'ring.');
-          } else if (e.message.contains('Email not confirmed')) {
-            throw Exception('Email tasdiqlanmagan. Iltimos, emailingizni tekshiring.');
-          }
-          break;
-        case '429':
-          throw Exception('Juda ko\'p urinish. Iltimos, 5 daqiqadan keyin qayta urinib ko\'ring.');
+      // Handle specific auth errors
+      if (e.statusCode == '400') {
+        if (e.message.contains('Invalid login credentials')) {
+          throw Exception('Email yoki parol noto\'g\'ri. Iltimos, qaytadan urinib ko\'ring.');
+        } else if (e.message.contains('Email not confirmed')) {
+          throw Exception('Email tasdiqlanmagan. Iltimos, emailingizni tekshiring.');
+        }
+      } else if (e.statusCode == '429') {
+        throw Exception('Juda ko\'p urinishlar. Iltimos, bir necha daqiqadan keyin qayta urinib ko\'ring.');
       }
       
       throw Exception('Kirish xatoligi: ${e.message}');
       
-    } on SocketException catch (e) {
-      debugPrint('Network error: $e');
-      _statusController.add(UserStatus.offline);
-      throw Exception('Internet aloqasi yo\'q. Iltimos, internetingizni tekshiring.');
-      
     } catch (e, stackTrace) {
-      debugPrint('Unexpected login error: $e');
+      debugPrint('Login error: $e');
       debugPrint('Stack trace: $stackTrace');
       _statusController.add(UserStatus.error);
       
@@ -240,7 +241,8 @@ class AuthService {
         throw Exception('Internet ulanishi yo\'q. Iltimos, ulanishni tekshiring.');
       } else if (e.toString().contains('timeout') || e is TimeoutException) {
         throw Exception('Serverga ulanish vaqti tugadi. Iltimos, keyinroq urinib ko\'ring.');
-      }
+      } else {
+        throw Exception('Kirishda xatolik yuz berdi. Iltimos, qaytadan urinib ko\'ring.');
       }
     }
   }
@@ -319,16 +321,15 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
-
       _currentUser = null;
       _userController.add(null);
       _statusController.add(UserStatus.unregistered);
-
-      debugPrint('Tizimdan muvaffaqiyatli chiqildi');
-    } catch (e) {
-      debugPrint('SignOut xatoligi: $e');
+      debugPrint('User signed out successfully');
+    } catch (e, stackTrace) {
+      debugPrint('Error signing out: $e');
+      debugPrint('Stack trace: $stackTrace');
       _statusController.add(UserStatus.error);
-      throw Exception('SignOut xatoligi: $e');
+      rethrow;
     }
   }
 

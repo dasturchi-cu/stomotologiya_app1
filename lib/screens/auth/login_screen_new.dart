@@ -94,42 +94,48 @@ class _LoginScreenState extends State<LoginScreenNew>
     });
 
     try {
-      await _authService.signInWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.home,
-          (route) => false,
-        );
+      if (response.user == null) {
+        throw Exception('Kirish muvaffaqiyatsiz. Iltimos, qayta urinib ko\'ring.');
       }
+
+      // Navigation is handled by AuthWrapper
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/');
+      }
+    } on AuthException catch (e) {
+      setState(() {
+        _errorMessage = _translateAuthError(e.message);
+        debugPrint('Auth error: ${e.message}');
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          // Extract the actual error message from the exception
-          String errorMessage = e.toString();
-          
-          // Clean up the error message to be more user-friendly
-          if (errorMessage.contains('Exception: ')) {
-            errorMessage = errorMessage.replaceAll('Exception: ', '');
-          }
-          
-          _errorMessage = errorMessage;
-          
-          // Log the error for debugging
-          debugPrint('Login error: $e');
-        });
-      }
+      setState(() {
+        _errorMessage = 'Xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.';
+        debugPrint('Login error: $e');
+      });
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  String _translateAuthError(String message) {
+    if (message.contains('Invalid login credentials')) {
+      return 'Noto\'g\'ri elektron pochta yoki parol';
+    } else if (message.contains('Email not confirmed')) {
+      return 'Iltimos, elektron pochtangizni tasdiqlang';
+    } else if (message.contains('Invalid email')) {
+      return 'Noto\'g\'ri elektron pochta formati';
+    } else if (message.contains('Network error')) {
+      return 'Internet aloqasini tekshiring';
+    }
+    return message;
+  }
   }
 
   void _navigateToRegister() {

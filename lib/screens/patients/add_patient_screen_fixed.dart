@@ -142,32 +142,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     setState(() => _isSaving = true);
 
     try {
-      // Upload images to Supabase storage first
-      List<String> uploadedImageUrls = [];
-      
-      if (_selectedImages.isNotEmpty) {
-        for (final imageFile in _selectedImages) {
-          try {
-            final fileName = 'patient_${DateTime.now().millisecondsSinceEpoch}_${uploadedImageUrls.length}.jpg';
-            final bytes = await imageFile.readAsBytes();
-            
-            await Supabase.instance.client.storage
-                .from('patient-images')
-                .uploadBinary(fileName, bytes);
-            
-            final imageUrl = Supabase.instance.client.storage
-                .from('patient-images')
-                .getPublicUrl(fileName);
-            
-            uploadedImageUrls.add(imageUrl);
-          } catch (uploadError) {
-            debugPrint('Image upload error: $uploadError');
-            // Continue with other images even if one fails
-          }
-        }
-      }
-
-      final newPatient = Patient(
+      // Create patient first to get an ID
+      final tempPatient = Patient(
         id: null,
         ismi: _fullnameController.text.trim(),
         tugilganSana: _birthDate!,
@@ -175,18 +151,57 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         birinchiKelganSana: _firstVisitDate ?? DateTime.now(),
         shikoyat: _complaintController.text.trim(),
         manzil: _addressController.text.trim(),
-        rasmManzili: uploadedImageUrls.isNotEmpty ? uploadedImageUrls.first : '',
-        rasmlarManzillari: uploadedImageUrls,
+        rasmManzili: '',
+        rasmlarManzillari: [],
         tashrifSanalari: [
           (_firstVisitDate ?? DateTime.now()).toIso8601String()
         ],
       );
 
-      await _patientService.addPatient(newPatient);
+      // Save patient to get ID
+      final patientId = await _patientService.addPatient(tempPatient);
+      
+      // Upload images to Supabase storage with patient ID
+      List<String> uploadedImageUrls = [];
+      
+      if (_selectedImages.isNotEmpty) {
+        for (final imageFile in _selectedImages) {
+          try {
+            final fileName = 'patient_${patientId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final bytes = await imageFile.readAsBytes();
+            
+            // Upload file to Supabase Storage
+            await Supabase.instance.client.storage
+                .from('patient-images')
+                .uploadBinary(fileName, bytes);
+            
+            // Get public URL
+            final imageUrl = Supabase.instance.client.storage
+                .from('patient-images')
+                .getPublicUrl(fileName);
+            
+            uploadedImageUrls.add(imageUrl);
+          } catch (uploadError) {
+            debugPrint('Rasm yuklashda xatolik: $uploadError');
+            // Continue with other images even if one fails
+          }
+        }
+      }
+
+      // Update patient with image URLs if any were uploaded
+      if (uploadedImageUrls.isNotEmpty) {
+        await _patientService.updatePatient(
+          tempPatient.copyWith(
+            id: patientId,
+            rasmManzili: uploadedImageUrls.first,
+            rasmlarManzillari: uploadedImageUrls,
+          ),
+        );
+      }
 
       if (mounted) {
         _errorHandler.showSuccess('Bemor muvaffaqiyatli qo\'shildi');
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true); // Return true to indicate success
       }
     } catch (e) {
       _errorHandler.showError('Xatolik yuz berdi: ${e.toString()}');

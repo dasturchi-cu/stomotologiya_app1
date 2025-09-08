@@ -4,60 +4,56 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'routes.dart';
-import 'models/patient.dart';
 import 'package:flutter/foundation.dart';
 import 'package:stomotologiya_app/service/patient_service.dart';
-import 'package:stomotologiya_app/service/supabase_auth_servise.dart';
+import 'package:stomotologiya_app/auth_wrapper.dart';
+import 'package:stomotologiya_app/models/patient.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting();
-
-  // Initialize Hive
-  await Hive.initFlutter();
-
+  
   try {
+    // Initialize date formatting
+    await initializeDateFormatting();
+
+    // Initialize Hive with error handling
+    await _initializeHive();
+
+    // Initialize Supabase
     await Supabase.initialize(
       url: 'https://ptosfyxqkvtmbmwdxzna.supabase.co',
-      anonKey:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0b3NmeXhxa3Z0bWJtd2R4em5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMDI1ODgsImV4cCI6MjA3MTg3ODU4OH0.QG6lOXG_NhQdjDmALd7JJQk9WoPuFMZ_Hzr8RAizIvI',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0b3NmeXhxa3Z0bWJtd2R4em5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMDI1ODgsImV4cCI6MjA3MTg3ODU4OH0.QG6lOXG_NhQdjDmALd7JJQk9WoPuFMZ_Hzr8RAizIvI',
       debug: true,
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
         detectSessionInUri: true,
       ),
-      realtimeClientOptions: const RealtimeClientOptions(
-        logLevel: RealtimeLogLevel.info,
-        timeout: Duration(seconds: 30),
-      ),
     );
 
-    // Initialize AuthService
-    await AuthService().initialize();
+    // Initialize Patient Service
+    await PatientService().initialize();
 
-    // faqat initialize muvaffaqiyatli bo‘lsa
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final AuthChangeEvent event = data.event;
-      if (event == AuthChangeEvent.signedIn) {
-        debugPrint('User signed in!');
-      } else if (event == AuthChangeEvent.signedOut) {
-        debugPrint('User signed out!');
-      }
-    });
-
-    if (kDebugMode) {
-      print('Supabase initialized successfully');
-    }
+    runApp(const MyApp());
   } catch (e) {
-    if (kDebugMode) {
-      print('Error initializing Supabase: $e');
-    }
-    return; // ❌ initialize bo‘lmasa, davom ettirmaymiz
+    debugPrint('Error during initialization: $e');
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text('Dasturni ishga tushirishda xatolik: $e'),
+          ),
+        ),
+      ),
+    );
   }
+}
 
-  // Initialize Hive with proper error handling
+Future<void> _initializeHive() async {
   try {
+    // Initialize Hive
+    await Hive.initFlutter();
+    
+    // Register adapters
     if (!Hive.isAdapterRegistered(PatientAdapter().typeId)) {
       Hive.registerAdapter(PatientAdapter());
     }
@@ -70,72 +66,38 @@ void main() async {
       await Hive.box('patients_v2').close();
     }
 
-    // Open Hive box with error recovery
+    // Try to open the patients box
     try {
-      // Open the patients box with correct type
       final box = await Hive.openBox<Patient>('patients');
-
-      // Initialize PatientService with Supabase
-      final patientService = PatientService();
-      await patientService.initialize();
-
-      if (kDebugMode) {
-        print('Hive and PatientService initialized successfully');
-      }
-
-      // Clean up test data if any exists
       await box.delete('test_key');
       await box.delete('recovery_test');
-
-      // Run database migration if needed
-      await migrateDatabase();
-    } catch (boxError) {
-      if (kDebugMode) {
-        print('Error initializing Hive box: $boxError');
-      }
-
-      // If error occurs, delete and recreate the box
-      try {
-        await Hive.deleteBoxFromDisk('patients');
-        await Hive.deleteBoxFromDisk('patients_v2');
-
-        // Recreate the box
-        await Hive.openBox<Map<dynamic, dynamic>>('patients_v2');
-
-        // Reinitialize PatientService
-        final patientService = PatientService();
-        await patientService.initialize();
-
-        if (kDebugMode) {
-          print('Successfully recreated patients_v2 box');
-        }
-      } catch (recoveryError) {
-        if (kDebugMode) {
-          print('Failed to recover Hive box: $recoveryError');
-        }
-
-        // Last resort - create a fallback box
-        try {
-          await Hive.openBox('patients_fallback');
-          if (kDebugMode) {
-            print('Created fallback box as last resort');
-          }
-        } catch (fallbackError) {
-          if (kDebugMode) {
-            print('Complete Hive failure: $fallbackError');
-          }
-          rethrow;
-        }
-      }
+    } catch (e) {
+      // If error occurs, try to recover
+      debugPrint('Error initializing Hive box: $e');
+      await _recoverHiveBox();
     }
-  } catch (generalError) {
-    if (kDebugMode) {
-      print('General Hive initialization error: $generalError');
-    }
-    throw Exception('Hive initialization failed: $generalError');
+  } catch (e) {
+    debugPrint('Failed to initialize Hive: $e');
+    rethrow;
   }
+}
 
-  runApp(const MyApp());
+Future<void> _recoverHiveBox() async {
+  try {
+    await Hive.deleteBoxFromDisk('patients');
+    await Hive.deleteBoxFromDisk('patients_v2');
+    await Hive.openBox<Map<dynamic, dynamic>>('patients_v2');
+    debugPrint('Successfully recreated patients_v2 box');
+  } catch (e) {
+    debugPrint('Failed to recover Hive box: $e');
+    try {
+      await Hive.openBox('patients_fallback');
+      debugPrint('Created fallback box as last resort');
+    } catch (e) {
+      debugPrint('Complete Hive failure: $e');
+      rethrow;
+    }
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -144,50 +106,65 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Stomotologiya',
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: [
+      theme: ThemeData.dark().copyWith(
+        colorScheme: ColorScheme.dark(
+          primary: Colors.blue[300]!,
+          secondary: Colors.blue[200]!,
+          surface: const Color(0xFF121212),
+          background: const Color(0xFF121212),
+        ),
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        cardColor: const Color(0xFF1E1E1E),
+        dividerColor: Colors.white24,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1E1E1E),
+          elevation: 0,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue[700],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF2D2D2D),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      ),
+      home: const AuthWrapper(),
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: [
-        const Locale('en', 'US'),
-        const Locale('uz', 'UZ'),
+      supportedLocales: const [
+        Locale('uz', 'UZ'),
+        Locale('ru', 'RU'),
+        Locale('en', 'US'),
       ],
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-      ),
-
-      // 🔑 Asosiy route
-      onGenerateRoute: AppRoutes.onGenerateRoute, // ✅ katta A bilan
-      initialRoute: AppRoutes.wrapper,
-
-      onUnknownRoute: (settings) => MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Route topilmadi')),
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "Noma'lum route: ${settings.name}\nIltimos routes.dart faylini tekshiring.",
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-      ),
+      locale: const Locale('uz', 'UZ'),
     );
   }
 }
 
+// Database migration function if needed in the future
 Future<void> migrateDatabase() async {
   try {
     if (kDebugMode) {
       print('Starting database migration check...');
     }
-
-    // Skip migration for now to avoid box conflicts
+    // Migration logic here
     if (kDebugMode) {
       print('Database migration check completed');
     }
@@ -197,5 +174,3 @@ Future<void> migrateDatabase() async {
     }
   }
 }
-
-//yaxshisi eng yaxshisi shu
