@@ -8,11 +8,15 @@ import 'package:flutter/foundation.dart';
 import 'package:stomotologiya_app/service/patient_service.dart';
 import 'package:stomotologiya_app/auth_wrapper.dart';
 import 'package:stomotologiya_app/models/patient.dart';
+import 'package:stomotologiya_app/routes.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
+    await dotenv.load(fileName: ".env");
+
     // Initialize date formatting
     await initializeDateFormatting();
 
@@ -20,9 +24,18 @@ void main() async {
     await _initializeHive();
 
     // Initialize Supabase
+    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    if (supabaseUrl == null || supabaseUrl.isEmpty) {
+      throw Exception('SUPABASE_URL .env da topilmadi');
+    }
+    if (supabaseAnonKey == null || supabaseAnonKey.isEmpty) {
+      throw Exception('SUPABASE_ANON_KEY .env da topilmadi');
+    }
+
     await Supabase.initialize(
-      url: 'https://ptosfyxqkvtmbmwdxzna.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0b3NmeXhxa3Z0bWJtd2R4em5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMDI1ODgsImV4cCI6MjA3MTg3ODU4OH0.QG6lOXG_NhQdjDmALd7JJQk9WoPuFMZ_Hzr8RAizIvI',
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
       debug: true,
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
@@ -108,23 +121,20 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Stomotologiya',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        colorScheme: ColorScheme.dark(
-          primary: Colors.blue[300]!,
-          secondary: Colors.blue[200]!,
-          surface: const Color(0xFF121212),
-          background: const Color(0xFF121212),
+      theme: ThemeData.light().copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        cardColor: const Color(0xFF1E1E1E),
-        dividerColor: Colors.white24,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E1E1E),
+        scaffoldBackgroundColor: Colors.grey.shade50,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.grey.shade900,
           elevation: 0,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue[700],
+            backgroundColor: Colors.indigo.shade600,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
             shape: RoundedRectangleBorder(
@@ -134,15 +144,28 @@ class MyApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF2D2D2D),
+          fillColor: Colors.white,
+          hintStyle: TextStyle(color: Colors.grey.shade600),
+          labelStyle: TextStyle(color: Colors.grey.shade800),
+          prefixIconColor: Colors.grey.shade700,
+          suffixIconColor: Colors.grey.shade700,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.indigo.shade600, width: 1.6),
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
       home: const AuthWrapper(),
+      onGenerateRoute: AppRoutes.onGenerateRoute,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

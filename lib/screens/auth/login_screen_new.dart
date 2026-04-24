@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../service/supabase_auth_servise.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes.dart';
 
 class LoginScreenNew extends StatefulWidget {
@@ -19,7 +19,6 @@ class _LoginScreenState extends State<LoginScreenNew>
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
 
   // Theme colors
   final Color _primaryColor = Colors.blue.shade700;
@@ -105,7 +104,7 @@ class _LoginScreenState extends State<LoginScreenNew>
 
       // Navigation is handled by AuthWrapper
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.wrapper);
       }
     } on AuthException catch (e) {
       setState(() {
@@ -136,7 +135,6 @@ class _LoginScreenState extends State<LoginScreenNew>
     }
     return message;
   }
-  }
 
   void _navigateToRegister() {
     Navigator.pushReplacementNamed(context, AppRoutes.register);
@@ -157,12 +155,12 @@ class _LoginScreenState extends State<LoginScreenNew>
                 const SizedBox(height: 40),
                 // Logo
                 ScaleTransition(
-                  scale: _logoScaleAnimation,
                   child: Icon(
                     Icons.medical_services,
                     size: 100,
                     color: _primaryColor,
                   ),
+                  scale: _logoScaleAnimation,
                 ),
                 const SizedBox(height: 16),
                 FadeTransition(

@@ -190,7 +190,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // Build enhanced info chip widget
-  Widget _buildEnhancedInfoChip(IconData icon, String label, Color color) {
+  Widget _buildEnhancedInfoChip(IconData icon, String label, Color color,
+      {double fontSize = 12}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -231,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: fontSize,
                 color: color.withOpacity(0.85),
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.4,
@@ -312,6 +313,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildEnhancedPatientCard(
       BuildContext context, Patient patient, int index,
       {required bool hasRecentVisit, required DateTime lastVisit}) {
+    final isCompact = MediaQuery.of(context).size.width < 460;
     final lastVisitFormatted = _formatDate(lastVisit);
     final initials = _getInitials(patient.ismi);
 
@@ -320,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: SlideTransition(
         position: _slideAnimation,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          margin: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 20, vertical: 5),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(28),
@@ -352,15 +354,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 );
               },
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(isCompact ? 10 : 24),
                 child: Row(
                   children: [
                     // Enhanced avatar with patient image or gradient
                     Hero(
                       tag: 'patient_${patient.id}',
                       child: Container(
-                        width: 70,
-                        height: 70,
+                        width: isCompact ? 50 : 70,
+                        height: isCompact ? 50 : 70,
                         decoration: BoxDecoration(
                           gradient: patient.rasmlarManzillari.isNotEmpty ? null : LinearGradient(
                             colors: hasRecentVisit
@@ -403,10 +405,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ? Center(
                                 child: Text(
                                   initials,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 22,
+                                    fontSize: isCompact ? 16 : 22,
                                     letterSpacing: 1.2,
                                   ),
                                 ),
@@ -414,61 +416,67 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             : null,
                       ),
                     ),
-                    const SizedBox(width: 24),
+                    SizedBox(width: isCompact ? 10 : 24),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  patient.ismi,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                    color: Colors.black87,
-                                    letterSpacing: 0.5,
+                          Text(
+                            patient.ismi,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isCompact ? 15 : 20,
+                              color: Colors.black87,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          if (hasRecentVisit) ...[
+                            const SizedBox(height: 4),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isCompact ? 8 : 10,
+                                  vertical: isCompact ? 4 : 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade100,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: Colors.green.shade300,
+                                    width: 1,
                                   ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 5,
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade700,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    SizedBox(width: isCompact ? 4 : 5),
+                                    Text(
+                                      'Yaqinda',
+                                      style: TextStyle(
+                                        color: Colors.green.shade800,
+                                        fontSize: isCompact ? 9 : 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              if (hasRecentVisit)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.green.shade400,
-                                        Colors.green.shade600,
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(30),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.green.withOpacity(0.3),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Text(
-                                    '● Yaqinda',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
+                            ),
+                          ],
+                          SizedBox(height: isCompact ? 6 : 12),
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(6),
+                                padding: EdgeInsets.all(isCompact ? 5 : 6),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
@@ -480,37 +488,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ),
                                 child: Icon(
                                   Icons.phone_rounded,
-                                  size: 18,
+                                  size: isCompact ? 16 : 18,
                                   color: Colors.blue.shade600,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              SizedBox(width: isCompact ? 8 : 12),
                               Text(
                                 patient.telefonRaqami ?? 'N/A',
                                 style: TextStyle(
                                   color: Colors.grey.shade700,
-                                  fontSize: 16,
+                                  fontSize: isCompact ? 12 : 16,
                                   fontWeight: FontWeight.w500,
                                   letterSpacing: 0.4,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: isCompact ? 10 : 16),
                           Wrap(
-                            spacing: 14,
-                            runSpacing: 10,
+                            spacing: 8,
+                            runSpacing: 6,
                             children: [
                               _buildEnhancedInfoChip(
                                 Icons.schedule_rounded,
                                 'So\'nggi: $lastVisitFormatted',
                                 Colors.orange.shade600,
+                                fontSize: isCompact ? 9 : 12,
                               ),
                               if (patient.shikoyat.isNotEmpty)
                                 _buildEnhancedInfoChip(
                                   Icons.medical_services_rounded,
                                   patient.shikoyat,
                                   Colors.red.shade500,
+                                  fontSize: isCompact ? 9 : 12,
                                 ),
                             ],
                           ),
@@ -521,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     Column(
                       children: [
                         Container(
-                          margin: const EdgeInsets.only(bottom: 12),
+                          margin: EdgeInsets.only(bottom: isCompact ? 8 : 12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -529,7 +539,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 Colors.blue.shade100,
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.blue.withOpacity(0.1),
@@ -542,7 +552,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             icon: Icon(
                               Icons.edit_rounded,
                               color: Colors.blue.shade600,
-                              size: 22,
+                              size: isCompact ? 16 : 22,
                             ),
                             onPressed: () {
                               Navigator.pushNamed(
@@ -561,7 +571,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 Colors.red.shade100,
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.red.withOpacity(0.1),
@@ -574,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             icon: Icon(
                               Icons.delete_rounded,
                               color: Colors.red.shade500,
-                              size: 22,
+                              size: isCompact ? 16 : 22,
                             ),
                             onPressed: () => _showDeleteConfirmation(
                                 context, patient, index),
@@ -1238,18 +1248,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               foregroundColor: Colors.white,
               elevation: 0,
               icon: Container(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.person_add_rounded, size: 22),
+                child: const Icon(Icons.person_add_rounded, size: 18),
               ),
               label: const Text(
                 'Yangi bemor',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 17,
+                  fontSize: 14,
                   letterSpacing: 0.6,
                 ),
               ),
