@@ -10,6 +10,7 @@ import 'package:stomotologiya_app/auth_wrapper.dart';
 import 'package:stomotologiya_app/models/patient.dart';
 import 'package:stomotologiya_app/routes.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:io';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +44,14 @@ Future<void> main() async {
       throw Exception('SUPABASE_URL https:// bilan boshlanishi kerak: $supabaseUrl');
     }
 
+    // DNS sanity check (real device troubleshooting)
+    try {
+      final addrs = await InternetAddress.lookup(parsed.host);
+      debugPrint('DNS OK for ${parsed.host}: ${addrs.map((a) => a.address).toList()}');
+    } catch (e) {
+      debugPrint('DNS FAIL for ${parsed.host}: $e');
+    }
+
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
@@ -53,17 +62,27 @@ Future<void> main() async {
       ),
     );
 
-    // Initialize Patient Service
-    await PatientService().initialize();
+    // Initialize Patient Service (non-blocking).
+    // If network/DNS is temporarily unavailable, app should still open.
+    try {
+      await PatientService().initialize();
+    } catch (e) {
+      debugPrint('PatientService init skipped: $e');
+    }
 
     runApp(const MyApp());
   } catch (e) {
+    final errorText = e.toString();
+    final friendly = (errorText.contains('Failed host lookup') ||
+            errorText.contains('SocketException'))
+        ? 'Internet yoki DNS xatosi. Telefoningizda Private DNS/VPN ni o\'chirib, qayta urinib ko\'ring.'
+        : errorText;
     debugPrint('Error during initialization: $e');
     runApp(
       MaterialApp(
         home: Scaffold(
           body: Center(
-            child: Text('Dasturni ishga tushirishda xatolik: $e'),
+            child: Text('Dasturni ishga tushirishda xatolik: $friendly'),
           ),
         ),
       ),

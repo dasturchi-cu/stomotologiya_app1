@@ -38,6 +38,12 @@ class AuthService {
 
   get user => null;
 
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+  }
+
   Future<void> initialize() async {
     if (_isInitialized) {
       return;
@@ -85,65 +91,33 @@ class AuthService {
         return;
       }
 
-      // Try to get user data from Supabase
-      final response = await _supabase
-          .from('users')
-          .select()
-          .eq('id', supabaseUser.id)
-          .maybeSingle()
-          .timeout(const Duration(seconds: 10));
-
-      // If user doesn't exist in the database, try to create a new user (may fail due to RLS)
-      if (response == null) {
-        final newUser = {
-          'id': supabaseUser.id,
-          'email': supabaseUser.email,
-          'display_name': supabaseUser.email?.split('@')[0] ?? 'User',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-          'disabled': false,
-        };
-
-        try {
-          await _supabase.from('users').insert(newUser);
-        } catch (e) {
-          // RLS may forbid client-side inserts; log and continue without failing
-          debugPrint(
-              'RLS prevented client insert into users table. Skipping. Error: $e');
-        }
-
-        _currentUser = AppUser(
-          uid: supabaseUser.id,
-          email: supabaseUser.email ?? '',
-          displayName: supabaseUser.email?.split('@')[0] ?? 'User',
-          status: UserStatus.active,
-          isEmailVerified: supabaseUser.emailConfirmedAt != null,
-          createdAt: DateTime.now(),
-          lastLoginAt: DateTime.now(),
-        );
-      } else {
-        // User exists, update last login time
-        await _supabase.from('users').update({
-          'last_login_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', supabaseUser.id);
-
-        _currentUser = AppUser(
-          uid: supabaseUser.id,
-          email: supabaseUser.email ?? '',
-          displayName: response['display_name'] ??
-              supabaseUser.email?.split('@')[0] ??
-              'User',
-          status: (response['disabled'] == true)
-              ? UserStatus.disabled
-              : UserStatus.active,
-          isEmailVerified: supabaseUser.emailConfirmedAt != null,
-          createdAt: response['created_at'] != null
-              ? DateTime.tryParse(response['created_at']) ?? DateTime.now()
-              : DateTime.now(),
-          lastLoginAt: DateTime.now(),
-        );
+      Map<String, dynamic>? profile;
+      try {
+        profile = await _supabase
+            .from('profiles')
+            .select('display_name, disabled')
+            .eq('id', supabaseUser.id)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('profiles not available/blocked, skipping. Error: $e');
+        profile = null;
       }
+
+      final disabled = profile != null && profile['disabled'] == true;
+      final displayName = (profile != null ? profile['display_name'] : null) ??
+          (supabaseUser.userMetadata?['display_name']) ??
+          (supabaseUser.email?.split('@').first ?? 'User');
+
+      _currentUser = AppUser(
+        uid: supabaseUser.id,
+        email: supabaseUser.email ?? '',
+        displayName: displayName?.toString(),
+        status: disabled ? UserStatus.disabled : UserStatus.active,
+        isEmailVerified: supabaseUser.emailConfirmedAt != null,
+        createdAt: DateTime.now(),
+        lastLoginAt: DateTime.now(),
+      );
 
       _userController.add(_currentUser);
       if (_currentUser != null) {
@@ -154,18 +128,7 @@ class AuthService {
       debugPrint('Error handling user session: $e');
       debugPrint('Stack trace: $stackTrace');
 
-      // If there's an error, sign out to prevent invalid states
-      try {
-        await _auth.signOut();
-      } catch (signOutError) {
-        debugPrint('Error during sign out: $signOutError');
-      }
-
-      _currentUser = null;
-      _userController.add(null);
-      _statusController.add(UserStatus.unregistered);
-
-      // Re-throw with a user-friendly message
+      // Re-throw with a user-friendly message (don't force sign-out for DB/table issues)
       if (e is TimeoutException) {
         throw TimeoutException('Serverga ulanish vaqti tugadi. Iltimos, internet aloqasini tekshiring.');
       } else {
@@ -175,6 +138,7 @@ class AuthService {
   }
 
   Future<AppUser> signInWithEmailAndPassword(String email, String password) async {
+    await _ensureInitialized();
     try {
       // Input validation
       if (email.isEmpty || password.isEmpty) {
@@ -249,9 +213,10 @@ class AuthService {
 
   Future<AppUser?> registerWithEmailAndPassword(String email, String password,
       {String? displayName}) async {
+    await _ensureInitialized();
     try {
       final response = await _auth.signUp(
-        email: email,
+        email: email.trim(),
         password: password,
         data: {
           'display_name': displayName,
@@ -266,6 +231,28 @@ class AuthService {
       }
 
       return null;
+    } on AuthException catch (e) {
+      debugPrint('Supabase register xatoligi: ${e.message} (${e.statusCode})');
+      _statusController.add(UserStatus.error);
+
+      if (e.statusCode == '429' ||
+          e.message.toLowerCase().contains('rate limit') ||
+          e.message.toLowerCase().contains('over_email_send_rate_limit')) {
+        throw Exception(
+            'Ko\'p urinish bo\'ldi (email limit). 10-30 daqiqa kuting yoki Supabase Auth’da "Confirm email" ni vaqtincha o\'chirib turing.');
+      }
+      if (e.message.contains('User already registered')) {
+        throw Exception('Bu email allaqachon ishlatilgan. Login qiling.');
+      }
+      if (e.message.toLowerCase().contains('invalid email') ||
+          e.message.toLowerCase().contains('email address') ||
+          e.message.toLowerCase().contains('email_address_invalid')) {
+        throw Exception('Email formati noto\'g\'ri. To\'g\'ri email kiriting.');
+      }
+      if (e.message.toLowerCase().contains('password')) {
+        throw Exception('Parol juda zaif. Kamida 6 ta belgi kiriting.');
+      }
+      throw Exception('Ro\'yxatdan o\'tish xatoligi: ${e.message}');
     } catch (e) {
       debugPrint('Supabase register xatoligi: $e');
       _statusController.add(UserStatus.error);
@@ -283,6 +270,10 @@ class AuthService {
         throw Exception('Parol juda zaif. Kamida 6 ta belgi kiriting.');
       } else if (e.toString().contains('Invalid email')) {
         throw Exception('Email formati noto\'g\'ri. To\'g\'ri email kiriting.');
+      } else if (e.toString().contains('over_email_send_rate_limit') ||
+          e.toString().contains('rate limit')) {
+        throw Exception(
+            'Ko\'p urinish bo\'ldi (email limit). 10-30 daqiqa kuting yoki Supabase Auth’da "Confirm email" ni vaqtincha o\'chirib turing.');
       } else if (e.toString().contains('network')) {
         throw Exception(
             'Internet ulanishi yo\'q. Iltimos, ulanishni tekshiring.');
@@ -294,6 +285,7 @@ class AuthService {
   }
 
   Future<AppUser?> signInWithGoogle() async {
+    await _ensureInitialized();
     try {
       _statusController.add(UserStatus.checking);
 
@@ -319,6 +311,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    await _ensureInitialized();
     try {
       await _auth.signOut();
       _currentUser = null;
@@ -334,6 +327,7 @@ class AuthService {
   }
 
   Future<void> resetPassword(String email) async {
+    await _ensureInitialized();
     try {
       await _auth.resetPasswordForEmail(email);
       debugPrint('Parol tiklash emaili yuborildi');
