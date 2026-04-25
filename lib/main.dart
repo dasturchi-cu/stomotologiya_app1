@@ -33,6 +33,16 @@ Future<void> main() async {
       throw Exception('SUPABASE_ANON_KEY .env da topilmadi');
     }
 
+    // Help debug wrong project URL / DNS issues
+    debugPrint('SUPABASE_URL=$supabaseUrl');
+    final parsed = Uri.tryParse(supabaseUrl);
+    if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
+      throw Exception('SUPABASE_URL noto‘g‘ri: $supabaseUrl');
+    }
+    if (!supabaseUrl.startsWith('https://')) {
+      throw Exception('SUPABASE_URL https:// bilan boshlanishi kerak: $supabaseUrl');
+    }
+
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
